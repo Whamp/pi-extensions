@@ -1,5 +1,6 @@
 import {
 	existsSync,
+	linkSync,
 	lstatSync,
 	mkdirSync,
 	readFileSync,
@@ -150,6 +151,62 @@ function writeAtomicUtf8File(path: string, body: string): { ok: true } | { ok: f
 	}
 }
 
+function writeNewAtomicUtf8File(path: string, body: string): { ok: true } | { ok: false; message: string } {
+	const dir = dirname(path);
+	const tmp = join(dir, `.${basename(path)}.${process.pid}.${Date.now()}.tmp`);
+	try {
+		mkdirSync(dir, { recursive: true, mode: 0o700 });
+		writeFileSync(tmp, body, { encoding: "utf8", mode: 0o600, flag: "wx" });
+		linkSync(tmp, path);
+		unlinkSync(tmp);
+		return { ok: true };
+	} catch {
+		try {
+			if (existsSync(tmp)) unlinkSync(tmp);
+		} catch {
+			// best-effort temp cleanup
+		}
+		return { ok: false, message: `Failed to create ${path}; it may already exist.` };
+	}
+}
+
+function verifySourceBytes(
+	path: string,
+	expectedBytes: string,
+): { ok: true; bytes: string } | { ok: false; diagnostic: ReturnType<typeof pstackConfigDiagnostic> } {
+	let currentBytes: string;
+	try {
+		const st = lstatSync(path);
+		if (!st.isFile()) {
+			return {
+				ok: false,
+				diagnostic: pstackConfigDiagnostic("not-regular-file", "error", `${path} is not a regular file.`),
+			};
+		}
+		currentBytes = readFileSync(path, "utf8");
+	} catch {
+		return {
+			ok: false,
+			diagnostic: pstackConfigDiagnostic(
+				"config-write-failed",
+				"error",
+				`Failed to verify ${path}. Nothing was written.`,
+			),
+		};
+	}
+	if (currentBytes !== expectedBytes) {
+		return {
+			ok: false,
+			diagnostic: pstackConfigDiagnostic(
+				"config-changed",
+				"error",
+				`${path} changed after it was loaded. Reload before saving.`,
+			),
+		};
+	}
+	return { ok: true, bytes: currentBytes };
+}
+
 /** Save a normalized v2 config with 0600 atomic replace. */
 export function savePstackRoleConfig(
 	config: PstackRoleConfig,
@@ -163,6 +220,25 @@ export function savePstackRoleConfig(
 	};
 }
 
+/** Create a missing config or replace an existing config only if its bytes are unchanged. */
+export function savePstackRoleConfigIfUnchanged(input: {
+	config: PstackRoleConfig;
+	path: string;
+	originalBytes?: string;
+}): PstackConfigWriteResult {
+	if (input.originalBytes === undefined) {
+		const created = writeNewAtomicUtf8File(input.path, serializePstackRoleConfig(input.config));
+		if (created.ok) return { ok: true, path: input.path };
+		return {
+			ok: false,
+			diagnostics: [pstackConfigDiagnostic("config-changed", "error", created.message)],
+		};
+	}
+	const verified = verifySourceBytes(input.path, input.originalBytes);
+	if (!verified.ok) return { ok: false, diagnostics: [verified.diagnostic] };
+	return savePstackRoleConfig(input.config, input.path);
+}
+
 /** Exclusive 0600 backup of verified source bytes, then atomic v2 save. */
 export function backupPstackConfigThenSave(input: {
 	originalBytes: string;
@@ -173,43 +249,11 @@ export function backupPstackConfigThenSave(input: {
 }): PstackConfigWriteResult {
 	const sourcePath = input.sourcePath ?? input.path;
 	const backupPath = input.backupPath ?? `${sourcePath}.bak`;
-	let currentBytes: string;
-	try {
-		const st = lstatSync(sourcePath);
-		if (!st.isFile()) {
-			return {
-				ok: false,
-				diagnostics: [pstackConfigDiagnostic("not-regular-file", "error", `${sourcePath} is not a regular file.`)],
-			};
-		}
-		currentBytes = readFileSync(sourcePath, "utf8");
-	} catch {
-		return {
-			ok: false,
-			diagnostics: [
-				pstackConfigDiagnostic(
-					"config-write-failed",
-					"error",
-					`Failed to verify ${sourcePath}. Left ${input.path} unchanged.`,
-				),
-			],
-		};
-	}
-	if (currentBytes !== input.originalBytes) {
-		return {
-			ok: false,
-			diagnostics: [
-				pstackConfigDiagnostic(
-					"config-changed",
-					"error",
-					`${sourcePath} changed after it was loaded. Reload before saving.`,
-				),
-			],
-		};
-	}
+	const verified = verifySourceBytes(sourcePath, input.originalBytes);
+	if (!verified.ok) return { ok: false, diagnostics: [verified.diagnostic] };
 
 	try {
-		writeFileSync(backupPath, currentBytes, { encoding: "utf8", mode: 0o600, flag: "wx" });
+		writeFileSync(backupPath, verified.bytes, { encoding: "utf8", mode: 0o600, flag: "wx" });
 	} catch {
 		return {
 			ok: false,

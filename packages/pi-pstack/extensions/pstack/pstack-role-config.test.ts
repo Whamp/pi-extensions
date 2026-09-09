@@ -22,6 +22,7 @@ import {
 	backupPstackConfigThenSave,
 	loadPstackRoleConfig,
 	savePstackRoleConfig,
+	savePstackRoleConfigIfUnchanged,
 } from "./pstack-role-config-store.ts";
 
 const MAX_CONFIG_BYTES = 100_000;
@@ -466,6 +467,49 @@ describe("loadPstackRoleConfig / savePstackRoleConfig", () => {
 			assert.equal(saved.ok, false);
 			assert.ok(saved.ok === false && saved.diagnostics.some((diagnostic) => diagnostic.code === "config-write-failed"));
 			assert.equal(lstatSync(link).isSymbolicLink(), true);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+});
+
+describe("savePstackRoleConfigIfUnchanged", () => {
+	it("replaces matching bytes and refuses stale or unexpectedly created files", () => {
+		const dir = tempDir("pstack-v2-unchanged-");
+		const path = join(dir, "models.json");
+		const original = `${JSON.stringify({ version: 2, roles: { "bug-fix": SELECTOR }, skillsEnabled: true }, null, 2)}\n`;
+		const next = decode({ version: 2, roles: { "bug-fix": SELECTOR_B }, skillsEnabled: true }).config;
+		try {
+			writeFileSync(path, original, "utf8");
+			assert.equal(savePstackRoleConfigIfUnchanged({ config: next, path, originalBytes: original }).ok, true);
+			const saved = readFileSync(path, "utf8");
+			assert.equal(loadPstackRoleConfig(path).config.roles["bug-fix"], SELECTOR_B);
+
+			const stale = savePstackRoleConfigIfUnchanged({
+				config: defaultPstackRoleConfig(),
+				path,
+				originalBytes: original,
+			});
+			assert.equal(stale.ok, false);
+			assert.ok(stale.ok === false && stale.diagnostics.some((diagnostic) => diagnostic.code === "config-changed"));
+			assert.equal(readFileSync(path, "utf8"), saved);
+
+			const unexpected = savePstackRoleConfigIfUnchanged({ config: defaultPstackRoleConfig(), path });
+			assert.equal(unexpected.ok, false);
+			assert.equal(readFileSync(path, "utf8"), saved);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("creates a new config only while the destination is missing", () => {
+		const dir = tempDir("pstack-v2-create-");
+		const path = join(dir, "nested", "models.json");
+		try {
+			const result = savePstackRoleConfigIfUnchanged({ config: defaultPstackRoleConfig(), path });
+			assert.equal(result.ok, true);
+			assert.equal(loadPstackRoleConfig(path).source, "v2");
+			if (process.platform !== "win32") assert.equal(lstatSync(path).mode & 0o777, 0o600);
 		} finally {
 			rmSync(dir, { recursive: true, force: true });
 		}
