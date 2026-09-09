@@ -11,3 +11,4 @@ ts	phase	decision	why	evidence	result
 2026-09-09T20:31:01Z	unit-2-green-corrected	22-role registry, v2 migration diagnostics, isolated persistence, byte-verified backup	65/65 package tests; pnpm check; git diff --check
 2026-09-09T20:31:02Z	unit-3-green-corrected	v2 runtime prompt, status, setup, effort preservation, no-clobber persistence	89/89 package tests; pnpm check; git diff --check
 2026-09-09T20:31:03Z	unit-4-green-corrected	atomic role consumers, generated role reference, reground protection, legacy API deletion	76/76 package tests; pnpm check; git diff --check
+2026-09-09T20:45:00Z	unit-5-docs	Added fork installation instructions and a minor release changeset for atomic model roles	README links generated role reference; changeset targets @zenspc/pi-pstack

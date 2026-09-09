@@ -6,8 +6,19 @@ If you want to go fast, go deep first. pstack helps you write less, but higher q
 
 ## Install
 
+The npm command installs the upstream release:
+
 ```bash
 pi install npm:@zenspc/pi-pstack
+```
+
+To install this fork instead:
+
+```bash
+git clone https://github.com/Whamp/pi-extensions.git ~/projects/pi-extensions
+cd ~/projects/pi-extensions
+pnpm install --frozen-lockfile
+pi install ~/projects/pi-extensions/packages/pi-pstack
 ```
 
 Requires [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) for the `poteto-agent`, `comment-sicko`, and workflow fan-outs (`how`, `why`, `arena`, `swarm`, `interrogate`, `reflect`).
