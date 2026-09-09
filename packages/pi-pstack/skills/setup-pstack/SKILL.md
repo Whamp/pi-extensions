@@ -11,19 +11,28 @@ It lists models configured for this Pi session and writes `~/.pi/agent/pstack/mo
 
 If the command is unavailable, write that JSON yourself:
 
-- `version`: `1`
-- `roles`: one key per role listed below
-- each value is `inherit-parent`, `auto`, a `provider/id` selector, or an array of those
+- `version`: `2`
+- `roles`: omit a role to inherit the parent model
+- each value is `inherit-parent`, a `provider/id` selector, or an array of selectors for `fanout` and `pick-one`
+- Do not persist `auto`. Write `inherit-parent` instead.
 - never write a selector you have not confirmed is available
-- start every role at `inherit-parent` unless the user chose a model
+- start every role omitted or at `inherit-parent` unless the user chose a model
 
-Roles: feature, refactoring; bug-fix; perf-issue; hillclimb; judgment and prose; hardest tasks; how explorer; how explainer; why investigators; why synthesizer; reflect tooling; reflect judgment, divergent, synthesizer; arena runners; arena cross-judge pool; swarm workers; architect runners; interrogate reviewers.
+The 22 roles and their cardinalities are in `references/MODEL-ROLES.md`.
 
-Panel roles (`arena runners`, `arena cross-judge pool`, `architect runners`, `interrogate reviewers`) are arrays: one subagent per entry.
+- `single`: one job, one selector
+- `repeat`: one selector, reused for N children the workflow chooses
+- `fanout`: one child per list entry
+- `pick-one`: a candidate list, then one child
 
 The file is user-level.
 Do not commit it.
-If `~/.pi/agent/pstack-models.md` exists and the JSON does not, the extension migrates it on session start.
+
+`/setup-pstack` is the only writer that migrates v1 JSON or leftover markdown.
+A backup is written before replacing v1 JSON or leftover markdown.
+Load never rewrites the file.
+Session start does not rewrite the file.
 
 After writing, tell the user it applies to new turns.
+`/pstack status` shows source, warnings, and errors.
 Offer `/skill:create-verification-skill` once if the project has no verify skill, same as before.

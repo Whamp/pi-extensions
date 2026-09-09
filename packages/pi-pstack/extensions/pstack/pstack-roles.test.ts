@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { describe, it } from "node:test";
-import { PSTACK_ROLES } from "./pstack-roles.ts";
+import { fileURLToPath } from "node:url";
+import { formatPstackRoleReferenceMarkdown, PSTACK_ROLES } from "./pstack-roles.ts";
 
 const SPEC_ROLES = [
 	["feature implementation", "single", "feature, refactoring"],
@@ -47,5 +50,18 @@ describe("PSTACK_ROLES", () => {
 		for (const name of ["hillclimb", "how explorers", "why investigators", "swarm workers"] as const) {
 			assert.equal(PSTACK_ROLES[name].cardinality, "repeat");
 		}
+	});
+
+	it("keeps MODEL-ROLES.md equal to the registry formatter", () => {
+		const path = join(
+			dirname(fileURLToPath(import.meta.url)),
+			"..",
+			"..",
+			"skills",
+			"setup-pstack",
+			"references",
+			"MODEL-ROLES.md",
+		);
+		assert.equal(readFileSync(path, "utf8"), formatPstackRoleReferenceMarkdown());
 	});
 });

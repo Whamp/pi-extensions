@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { dirname, join, relative } from "node:path";
 import { tmpdir } from "node:os";
 import { after, test } from "node:test";
-import { asRelPath, classify, plan } from "./reground-from-cursor.mjs";
+import { applyBodyTransforms, asRelPath, classify, plan } from "./reground-from-cursor.mjs";
 
 const SKILL_BODY = "# fixture skill body\n";
 
@@ -90,6 +90,7 @@ test("classify maps Cursor-relative paths to copy classes", () => {
 	assert.equal(classify(asRelPath("skills/typescript-best-practices/references/patterns.md")), "copy");
 	assert.equal(classify(asRelPath("skills/how/SKILL.md")), "adapt");
 	assert.equal(classify(asRelPath("skills/setup-pstack/SKILL.md")), "pi-only");
+	assert.equal(classify(asRelPath("skills/setup-pstack/references/MODEL-ROLES.md")), "pi-only");
 	assert.equal(classify(asRelPath("skills/make-bot-ui/SKILL.md")), "never-copy");
 	assert.equal(classify(asRelPath("skills/principle-attack-the-premise/SKILL.md")), "copy");
 	assert.equal(classify(asRelPath("agents/poteto-agent.md")), "never-copy");
@@ -143,11 +144,68 @@ test("plan dry-run derives count and config patches only for a stale destination
 		.sort((a, b) => (a[0] < b[0] ? -1 : 1));
 	assert.deepEqual(stalePatches, [
 		["catalog-counts", "extensions/pstack/skill-catalog.test.ts"],
-		["drop-how-critics", "extensions/pstack/config.ts"],
 		["readme-counts", "README.md"],
 	]);
+	assert.equal(
+		stale.actions.some((action) => action.derived === "drop-how-critics"),
+		false,
+	);
 
 	const synced = plan({ from: cursorDir, to: piSyncedDir, dryRun: true });
 	assert.deepEqual(synced.actions.filter((action) => action.derived), []);
 	assert.deepEqual(synced.counts, stale.counts);
+});
+
+test("adapt transforms Cursor role prose to atomic Pi names", () => {
+	const how = applyBodyTransforms(
+		[
+			"## Step 2a. Explore (complex questions only)",
+			"- `model`: your configured how-explorer model (default inherit-parent)",
+			"## Step 2b. Direct Explain (simple questions)",
+			"- `model`: your configured how-explainer model (default inherit-parent)",
+			"## Step 3. Synthesize (complex questions only)",
+			"- `model`: your configured how-explainer model (default inherit-parent)",
+		].join("\n"),
+		"skills/how/SKILL.md",
+	);
+	assert.equal(how.includes("`how explorers`"), true);
+	assert.equal(how.includes("`how explainer`"), true);
+	assert.equal(how.includes("`how synthesizer`"), true);
+	assert.equal(how.includes("how-explorer"), false);
+	assert.equal(how.includes("how-explainer"), false);
+
+	const arena = applyBodyTransforms(
+		"choose one model from the `arena cross-judge pool` in `~/.pi/agent/pstack/models.json`",
+		"skills/arena/SKILL.md",
+	);
+	assert.equal(arena.includes("`arena judge pool`"), true);
+	assert.equal(arena.includes("arena cross-judge pool"), false);
+
+	const feature = applyBodyTransforms(
+		"Delegate code-writing to a subagent using your configured feature model (default inherit-parent)",
+		"skills/poteto-mode/playbooks/feature.md",
+	);
+	assert.equal(feature.includes("`feature implementation`"), true);
+
+	const architect = applyBodyTransforms(
+		"Use your configured architect runners (defaults inherit-parent).",
+		"skills/architect/SKILL.md",
+	);
+	assert.equal(architect.includes("`architect runners`"), true);
+	assert.equal(architect.includes("`arena judge pool`"), true);
+	assert.equal(architect.includes("at least two candidates"), true);
+
+	const reflect = applyBodyTransforms(
+		[
+			"| Judgment | your configured reflect-judgment model (default inherit-parent) | `references/judgment-reviewer.md` |",
+			"| Tooling | your configured reflect-tooling model (default inherit-parent) | `references/tooling-reviewer.md` |",
+			"| Divergent | your configured reflect-judgment model (default inherit-parent) | `references/divergent-reviewer.md` |",
+			"using your configured reflect-judgment model (default inherit-parent)",
+		].join("\n"),
+		"skills/reflect/SKILL.md",
+	);
+	assert.equal(reflect.includes("`reflect judgment reviewer`"), true);
+	assert.equal(reflect.includes("`reflect tooling reviewer`"), true);
+	assert.equal(reflect.includes("`reflect divergent reviewer`"), true);
+	assert.equal(reflect.includes("`reflect synthesizer`"), true);
 });

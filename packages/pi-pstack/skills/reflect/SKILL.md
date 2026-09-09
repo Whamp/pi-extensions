@@ -32,15 +32,15 @@ One message, three `subagent()` launches, `agent: "worker", explicit `model:` on
 
 | Lens | `model` | Prompt template |
 |---|---|---|
-| Judgment | your configured reflect-judgment model (default inherit-parent) | `references/judgment-reviewer.md` |
-| Tooling | your configured reflect-tooling model (default inherit-parent) | `references/tooling-reviewer.md` |
-| Divergent | your configured reflect-judgment model (default inherit-parent) | `references/divergent-reviewer.md` |
+| Judgment | `reflect judgment reviewer` (default inherit-parent) | `references/judgment-reviewer.md` |
+| Tooling | `reflect tooling reviewer` (default inherit-parent) | `references/tooling-reviewer.md` |
+| Divergent | `reflect divergent reviewer` (default inherit-parent) | `references/divergent-reviewer.md` |
 
 Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.
 
 ### 3. Synthesize
 
-One `subagent()` launch, `agent: "worker", using your configured reflect-judgment model (default inherit-parent), agent mode (`readonly: false`). The synthesizer's quality check includes spot-verifying citations, which can require MCP access. Readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
+One `subagent()` launch, `agent: "worker", using `reflect synthesizer` (default inherit-parent), agent mode (`readonly: false`). The synthesizer's quality check includes spot-verifying citations, which can require MCP access. Readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.
 
 ### 4. Structural enforcement check
 

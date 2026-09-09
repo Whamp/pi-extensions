@@ -36,7 +36,7 @@ export const CLASS_RULES = [
 	{ pattern: "LICENSE", class: "never-copy" },
 
 	{ pattern: "skills/deslop/**", class: "pi-only" },
-	{ pattern: "skills/setup-pstack/SKILL.md", class: "pi-only" },
+	{ pattern: "skills/setup-pstack/**", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/check-plan.mjs", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/check-plan.test.mjs", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/package.json", class: "pi-only" },
@@ -451,15 +451,6 @@ function needsReadmeCounts(to, counts) {
 	);
 }
 
-function needsDropHowCritics(to) {
-	const files = [
-		"extensions/pstack/config.ts",
-		"extensions/pstack/config.test.ts",
-		"skills/setup-pstack/SKILL.md",
-	];
-	return files.some((rel) => readOptional(join(to, rel)).includes("how critics"));
-}
-
 const POTETO_INTRO = [
 	"`/poteto-mode` enables this mode for the rest of the session.",
 	"`/poteto-mode off` disables it.",
@@ -470,14 +461,14 @@ const POTETO_INTRO = [
 ].join("\n");
 
 const SUBAGENT_DEFAULTS =
-	"**Defaults for every `subagent()` launch.** file pointers not inlined context. The default for every role is the parent session model (`inherit-parent`; omit `model`). `/setup-pstack` writes `~/.pi/agent/pstack/models.json` and overrides per role. Pass a configured real slug as `model:`. `inherit-parent` and `auto` mean omit `model`. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to the model configured for `hardest tasks`, else the parent model, when the task needs judgment or the intent is vague, and to your strongest instruction-following model when the work is a precisely specified sequence of steps to execute to the letter; trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`); a role with no line keeps its default.";
+	"**Defaults for every `subagent()` launch.** `run_in_background: true`, agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`). Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit `model`).";
 
 function patchPotetoModePi(text) {
 	if (!text.includes("`/poteto-mode` enables this mode")) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
-	text = text.replace(/\*\*Defaults for every `subagent\(\)` launch\.\*\*`run_in_background:[^\n]*/, SUBAGENT_DEFAULTS);
+	text = text.replace(/\*\*Defaults for every `subagent\(\)` launch\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
 	return text;
 }
 
@@ -538,14 +529,6 @@ export function plan(paths) {
 			derived: "readme-counts",
 		});
 	}
-	if (needsDropHowCritics(paths.to)) {
-		actions.push({
-			kind: "patch",
-			dest: join(paths.to, "extensions/pstack/config.ts"),
-			derived: "drop-how-critics",
-		});
-	}
-
 	return { paths, actions, counts };
 }
 
@@ -598,13 +581,55 @@ export function applyFrontmatterPolicy(text, skillDir) {
 	return `---\n${lines.join("\n")}\n---\n${body}`;
 }
 
-export function applyBodyTransforms(text, _rel) {
+export function applyAtomicRoleTransforms(text, rel) {
+	text = text.replace(/`arena cross-judge pool`/g, "`arena judge pool`");
+	text = text.replace(/your configured feature model/g, "the `feature implementation` role");
+	text = text.replace(/your configured refactoring model/g, "the `refactoring implementation` role");
+	text = text.replace(/your configured bug-fix model/g, "the `bug-fix` role");
+	text = text.replace(/your configured perf-issue model/g, "the `perf-issue` role");
+	text = text.replace(/your configured hillclimb model/g, "the `hillclimb` role");
+	text = text.replace(/your configured how-explorer model/g, "`how explorers`");
+	text = text.replace(/your configured why-investigators model/g, "`why investigators`");
+	text = text.replace(/your configured why-synthesizer model/g, "`why synthesizer`");
+	text = text.replace(/your configured reflect-tooling model/g, "`reflect tooling reviewer`");
+	text = text.replace(
+		/Use your configured architect runners \(defaults inherit-parent\)\./g,
+		"Override Arena's candidate selector with `architect runners` (defaults inherit-parent). Require at least two candidates. The Arena judge still uses `arena judge pool`.",
+	);
+	if (rel === "skills/how/SKILL.md") {
+		text = text.replace(
+			/(## Step 2b\. Direct Explain[\s\S]*?)your configured how-explainer model/,
+			"$1`how explainer`",
+		);
+		text = text.replace(
+			/(## Step 3\. Synthesize[\s\S]*?)your configured how-explainer model/,
+			"$1`how synthesizer`",
+		);
+	}
+	if (rel === "skills/reflect/SKILL.md") {
+		text = text.replace(
+			/(\| Judgment \| )your configured reflect-judgment model/,
+			"$1`reflect judgment reviewer`",
+		);
+		text = text.replace(
+			/(\| Divergent \| )your configured reflect-judgment model/,
+			"$1`reflect divergent reviewer`",
+		);
+		text = text.replace(
+			/using your configured reflect-judgment model/,
+			"using `reflect synthesizer`",
+		);
+	}
+	return text;
+}
+
+export function applyBodyTransforms(text, rel) {
 	for (let i = 0; i < 20; i++) {
 		let next = text;
 		for (const seam of SEAMS) {
 			next = next.replace(seam.cursor, seam.pi);
 		}
-		if (next === text) return next;
+		if (next === text) return applyAtomicRoleTransforms(next, rel);
 		text = next;
 	}
 	throw new Error("seam fixpoint did not converge");
@@ -659,16 +684,6 @@ function patchReadmeCounts(text, counts) {
 		.replace(/\d+ principle skills/g, `${counts.principles} principle skills`);
 }
 
-function dropHowCriticsFromConfig(text) {
-	return text.replace(/\n\t"how critics",/g, "");
-}
-
-function dropHowCriticsFromSetup(text) {
-	return text
-		.replace("how explainer; how critics; why investigators", "how explainer; why investigators")
-		.replace("(`how critics`, `arena runners`", "(`arena runners`");
-}
-
 export function applyDerivedPatch(kind, destRoot, counts) {
 	if (kind === "catalog-counts") {
 		const dest = join(destRoot, "extensions/pstack/skill-catalog.test.ts");
@@ -678,15 +693,6 @@ export function applyDerivedPatch(kind, destRoot, counts) {
 	if (kind === "readme-counts") {
 		const dest = join(destRoot, "README.md");
 		writeIfChanged(dest, patchReadmeCounts(readFileSync(dest, "utf8"), counts));
-		return;
-	}
-	if (kind === "drop-how-critics") {
-		const configPath = join(destRoot, "extensions/pstack/config.ts");
-		writeIfChanged(configPath, dropHowCriticsFromConfig(readFileSync(configPath, "utf8")));
-		const testPath = join(destRoot, "extensions/pstack/config.test.ts");
-		writeIfChanged(testPath, readFileSync(testPath, "utf8").replaceAll("how critics", "arena runners"));
-		const setupPath = join(destRoot, "skills/setup-pstack/SKILL.md");
-		writeIfChanged(setupPath, dropHowCriticsFromSetup(readFileSync(setupPath, "utf8")));
 	}
 }
 

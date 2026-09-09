@@ -176,6 +176,31 @@ export function isPstackRoleName(value: string): value is PstackRoleName {
 /** v2 pstack role names in registry order. */
 export const PSTACK_ROLE_NAMES: readonly PstackRoleName[] = Object.keys(PSTACK_ROLES).filter(isPstackRoleName);
 
+/** Markdown role reference generated from the registry. */
+export function formatPstackRoleReferenceMarkdown(): string {
+	const lines = [
+		"# Pstack model roles",
+		"",
+		"Generated from `extensions/pstack/pstack-roles.ts`. Edit the registry, not this file.",
+		"",
+		"Cardinality:",
+		"",
+		"- `single`: one job, one selector.",
+		"- `repeat`: one selector, reused for N children the workflow chooses.",
+		"- `fanout`: one child per list entry.",
+		"- `pick-one`: a candidate list, then one child.",
+		"",
+		"| Role | Cardinality | Purpose |",
+		"| --- | --- | --- |",
+	];
+	for (const name of PSTACK_ROLE_NAMES) {
+		const definition = PSTACK_ROLES[name];
+		lines.push(`| \`${name}\` | \`${definition.cardinality}\` | ${definition.purpose} |`);
+	}
+	lines.push("");
+	return lines.join("\n");
+}
+
 /** v1 role name to v2 targets, derived from registry legacyName fields. */
 export const PSTACK_LEGACY_ROLE_TARGETS: ReadonlyMap<string, readonly PstackRoleName[]> = (() => {
 	const map = new Map<string, PstackRoleName[]>();
