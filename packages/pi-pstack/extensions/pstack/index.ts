@@ -1,7 +1,11 @@
 import { lstatSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import { configPath, legacyMarkdownPath } from "./config.ts";
 import {
 	canPersistPstackSkillsToggle,
@@ -60,7 +64,9 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return typeof error === "object" && error !== null && "code" in error;
 }
 
-function readExactSourceBytes(path: string): { ok: true; bytes: string } | { ok: false; message?: string } {
+function readExactSourceBytes(
+	path: string,
+): { ok: true; bytes: string } | { ok: false; message?: string } {
 	try {
 		const st = lstatSync(path);
 		if (!st.isFile()) return { ok: false, message: `${path} is not a regular file.` };
@@ -80,13 +86,19 @@ function notifyWriteResult(ctx: ExtensionCommandContext, result: PstackConfigWri
 	ctx.ui.notify(result.diagnostics.map((diagnostic) => diagnostic.message).join(" "), "error");
 }
 
-function commandScopedModels(ctx: ExtensionCommandContext): readonly PstackScopedModelEntry[] | undefined {
+function commandScopedModels(
+	ctx: ExtensionCommandContext,
+): readonly PstackScopedModelEntry[] | undefined {
 	if (!("scopedModels" in ctx)) return undefined;
 	const value: unknown = Reflect.get(ctx, "scopedModels");
 	return Array.isArray(value) ? value : undefined;
 }
 
-function sourcePathFor(result: PstackConfigReadResult, jsonPath: string, markdownPath: string): string {
+function sourcePathFor(
+	result: PstackConfigReadResult,
+	jsonPath: string,
+	markdownPath: string,
+): string {
 	return result.source === "markdown" ? markdownPath : jsonPath;
 }
 
@@ -112,7 +124,10 @@ async function persistSetupConfig(input: {
 	}
 	if (kind === "backup-legacy" || kind === "confirm-replace") {
 		if (input.originalBytes === undefined) {
-			input.ctx.ui.notify(input.originalReadError ?? "The source config disappeared. Nothing was written.", "error");
+			input.ctx.ui.notify(
+				input.originalReadError ?? "The source config disappeared. Nothing was written.",
+				"error",
+			);
 			return;
 		}
 		notifyWriteResult(
@@ -127,7 +142,10 @@ async function persistSetupConfig(input: {
 		return;
 	}
 	if (kind === "atomic-v2" && input.originalBytes === undefined) {
-		input.ctx.ui.notify(input.originalReadError ?? "The source config disappeared. Nothing was written.", "error");
+		input.ctx.ui.notify(
+			input.originalReadError ?? "The source config disappeared. Nothing was written.",
+			"error",
+		);
 		return;
 	}
 	notifyWriteResult(
@@ -140,6 +158,7 @@ async function persistSetupConfig(input: {
 	);
 }
 
+/** Register pstack commands, prompt injection, and session status with Pi. */
 export default function pstackExtension(pi: ExtensionAPI): void {
 	let potetoMode = false;
 
@@ -154,7 +173,8 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 		if (ctx) setStatus(ctx);
 	}
 
-	pi.on("session_start", async (_event, ctx) => {
+	pi.on("session_start", async (event, ctx) => {
+		void event;
 		potetoMode = false;
 		potetoMode = lastPotetoEnabled(sessionEntries(ctx));
 		setStatus(ctx);
@@ -183,7 +203,8 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("poteto-mode", {
-		description: "Enable or disable sticky pstack Poteto Mode. Usage: /poteto-mode [task] | /poteto-mode off",
+		description:
+			"Enable or disable sticky pstack Poteto Mode. Usage: /poteto-mode [task] | /poteto-mode off",
 		getArgumentCompletions: (prefix) => {
 			const token = prefix.trim().toLowerCase();
 			if (!token || "off".startsWith(token)) {
@@ -213,7 +234,8 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 
 	pi.registerCommand("setup-pstack", {
 		description: "Map pstack delegation roles to models available in this Pi session.",
-		handler: async (_args, ctx) => {
+		handler: async (args, ctx) => {
+			void args;
 			if (!ctx.hasUI) {
 				ctx.ui.notify("pstack setup needs a UI. Nothing was written.", "error");
 				return;
@@ -252,7 +274,8 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.registerCommand("pstack", {
-		description: "Show or toggle whether pstack skills are listed in the system prompt. Usage: /pstack [on|off|status]",
+		description:
+			"Show or toggle whether pstack skills are listed in the system prompt. Usage: /pstack [on|off|status]",
 		getArgumentCompletions: (prefix) => {
 			const token = prefix.trim().toLowerCase();
 			const options = ["on", "off", "status"].filter((value) => value.startsWith(token));
@@ -273,12 +296,17 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 				return;
 			}
 			if (!canPersistPstackSkillsToggle(loaded)) {
-				ctx.ui.notify("pstack config is not a clean v2 document. Run /setup-pstack to save changes.", "error");
+				ctx.ui.notify(
+					"pstack config is not a clean v2 document. Run /setup-pstack to save changes.",
+					"error",
+				);
 				return;
 			}
 			if (enabled === loaded.config.skillsEnabled) {
 				ctx.ui.notify(
-					enabled ? "pstack skills on." : "pstack skills off. Hidden from the model; /skill:<name> still works.",
+					enabled
+						? "pstack skills on."
+						: "pstack skills off. Hidden from the model; /skill:<name> still works.",
 					"info",
 				);
 				return;
@@ -289,7 +317,9 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 				return;
 			}
 			ctx.ui.notify(
-				enabled ? "pstack skills on." : "pstack skills off. Hidden from the model; /skill:<name> still works.",
+				enabled
+					? "pstack skills on."
+					: "pstack skills off. Hidden from the model; /skill:<name> still works.",
 				"info",
 			);
 		},

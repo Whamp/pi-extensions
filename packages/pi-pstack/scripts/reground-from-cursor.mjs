@@ -49,13 +49,7 @@ export const CLASS_RULES = [
 	{ pattern: "skills/**", class: "adapt" },
 ];
 
-const DEST_ONLY_NEVER = [
-	"extensions/**",
-	"package.json",
-	"CHANGELOG.md",
-	"agents/**",
-	"README.md",
-];
+const DEST_ONLY_NEVER = ["extensions/**", "package.json", "CHANGELOG.md", "agents/**", "README.md"];
 
 const KNOWN_TOP = new Set(
 	CLASS_RULES.map((rule) => rule.pattern.split("/")[0].replaceAll("*", "")).filter(Boolean),
@@ -93,8 +87,10 @@ export const SEAMS = [
 	},
 	{
 		id: "deslop",
-		cursor: /the `deslop` skill from the `cursor-team-kit` plugin \(`\/deslop`\)|(?<!skill:)\/deslop\b/g,
-		pi: (m) => (m.includes("cursor-team-kit") ? "the **deslop** skill (`/skill:deslop`)" : "/skill:deslop"),
+		cursor:
+			/the `deslop` skill from the `cursor-team-kit` plugin \(`\/deslop`\)|(?<!skill:)\/deslop\b/g,
+		pi: (m) =>
+			m.includes("cursor-team-kit") ? "the **deslop** skill (`/skill:deslop`)" : "/skill:deslop",
 	},
 	{
 		id: "control-pair",
@@ -103,8 +99,7 @@ export const SEAMS = [
 	},
 	{
 		id: "control-from",
-		cursor:
-			/`control-ui` from (?:`[^`]*`|\.)|`control-cli` from (?:`[^`]*`|\.)/g,
+		cursor: /`control-ui` from (?:`[^`]*`|\.)|`control-cli` from (?:`[^`]*`|\.)/g,
 		pi: "the project's verification skill or harness",
 	},
 	{
@@ -130,7 +125,8 @@ export const SEAMS = [
 	},
 	{
 		id: "subagent-worker",
-		cursor: /`subagent_type`:\s*`generalPurpose`|subagent_type:\s*"generalPurpose"|subagent_type:\s*`?generalPurpose`?/g,
+		cursor:
+			/`subagent_type`:\s*`generalPurpose`|subagent_type:\s*"generalPurpose"|subagent_type:\s*`?generalPurpose`?/g,
 		pi: 'agent: "worker"',
 	},
 	{
@@ -180,7 +176,8 @@ export const SEAMS = [
 	},
 	{
 		id: "create-skill-use",
-		cursor: /Use the \*\*create-skill\*\* skill \(Cursor's built-in for authoring SKILL\.md files\)\./g,
+		cursor:
+			/Use the \*\*create-skill\*\* skill \(Cursor's built-in for authoring SKILL\.md files\)\./g,
 		pi: "Author SKILL.md to the Pi Agent Skills standard. Run `/skill:unslop` on every line.",
 	},
 	{
@@ -436,7 +433,9 @@ function needsCatalogCounts(to, counts) {
 	const text = readOptional(join(to, "extensions/pstack/skill-catalog.test.ts"));
 	return (
 		!text.includes(`assert.equal(skills.length, ${counts.total})`) ||
-		!text.includes(`assert.equal(skills.filter((skill) => skill.hidden).length, ${counts.hidden})`) ||
+		!text.includes(
+			`assert.equal(skills.filter((skill) => skill.hidden).length, ${counts.hidden})`,
+		) ||
 		!text.includes(`assert.equal(hidden.length, ${counts.hidden})`)
 	);
 }
@@ -468,7 +467,10 @@ function patchPotetoModePi(text) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
-	text = text.replace(/\*\*Defaults for every `subagent\(\)` launch\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
+	text = text.replace(
+		/\*\*Defaults for every `subagent\(\)` launch\.\*\*[^\n]*/,
+		SUBAGENT_DEFAULTS,
+	);
 	return text;
 }
 
@@ -581,21 +583,28 @@ export function applyFrontmatterPolicy(text, skillDir) {
 	return `---\n${lines.join("\n")}\n---\n${body}`;
 }
 
-export function applyAtomicRoleTransforms(text, rel) {
-	text = text.replace(/`arena cross-judge pool`/g, "`arena judge pool`");
-	text = text.replace(/your configured feature model/g, "the `feature implementation` role");
-	text = text.replace(/your configured refactoring model/g, "the `refactoring implementation` role");
-	text = text.replace(/your configured bug-fix model/g, "the `bug-fix` role");
-	text = text.replace(/your configured perf-issue model/g, "the `perf-issue` role");
-	text = text.replace(/your configured hillclimb model/g, "the `hillclimb` role");
-	text = text.replace(/your configured how-explorer model/g, "`how explorers`");
-	text = text.replace(/your configured why-investigators model/g, "`why investigators`");
-	text = text.replace(/your configured why-synthesizer model/g, "`why synthesizer`");
-	text = text.replace(/your configured reflect-tooling model/g, "`reflect tooling reviewer`");
-	text = text.replace(
+const ATOMIC_ROLE_REPLACEMENTS = [
+	[/`arena cross-judge pool`/g, "`arena judge pool`"],
+	[/your configured feature model/g, "the `feature implementation` role"],
+	[/your configured refactoring model/g, "the `refactoring implementation` role"],
+	[/your configured bug-fix model/g, "the `bug-fix` role"],
+	[/your configured perf-issue model/g, "the `perf-issue` role"],
+	[/your configured hillclimb model/g, "the `hillclimb` role"],
+	[/your configured how-explorer model/g, "`how explorers`"],
+	[/your configured why-investigators model/g, "`why investigators`"],
+	[/your configured why-synthesizer model/g, "`why synthesizer`"],
+	[/your configured reflect-tooling model/g, "`reflect tooling reviewer`"],
+	[
 		/Use your configured architect runners \(defaults inherit-parent\)\./g,
 		"Override Arena's candidate selector with `architect runners` (defaults inherit-parent). Require at least two candidates. The Arena judge still uses `arena judge pool`.",
-	);
+	],
+];
+
+/** Rewrite upstream role prose to the atomic Pi schema, with file-specific How and Reflect splits. */
+export function applyAtomicRoleTransforms(text, rel) {
+	for (const [cursor, pi] of ATOMIC_ROLE_REPLACEMENTS) {
+		text = text.replace(cursor, pi);
+	}
 	if (rel === "skills/how/SKILL.md") {
 		text = text.replace(
 			/(## Step 2b\. Direct Explain[\s\S]*?)your configured how-explainer model/,
@@ -668,12 +677,18 @@ function writeIfChanged(dest, text, modeSrc) {
 
 function patchCatalogCounts(text, counts) {
 	return text
-		.replace(/assert\.equal\(skills\.length, \d+\)/g, `assert.equal(skills.length, ${counts.total})`)
+		.replace(
+			/assert\.equal\(skills\.length, \d+\)/g,
+			`assert.equal(skills.length, ${counts.total})`,
+		)
 		.replace(
 			/assert\.equal\(skills\.filter\(\(skill\) => skill\.hidden\)\.length, \d+\)/g,
 			`assert.equal(skills.filter((skill) => skill.hidden).length, ${counts.hidden})`,
 		)
-		.replace(/assert\.equal\(hidden\.length, \d+\)/g, `assert.equal(hidden.length, ${counts.hidden})`);
+		.replace(
+			/assert\.equal\(hidden\.length, \d+\)/g,
+			`assert.equal(hidden.length, ${counts.hidden})`,
+		);
 }
 
 function patchReadmeCounts(text, counts) {
@@ -729,7 +744,8 @@ export function assertNoCursorSeams(destRoot) {
 		const text = readFileSync(join(destRoot, rel), "utf8");
 		if (text.includes("AskQuestion")) leftover.push(`${rel}: AskQuestion`);
 		if (text.includes("subagent_type")) leftover.push(`${rel}: subagent_type`);
-		if (text.includes("~/.cursor/rules/pstack-models.mdc")) leftover.push(`${rel}: pstack-models.mdc`);
+		if (text.includes("~/.cursor/rules/pstack-models.mdc"))
+			leftover.push(`${rel}: pstack-models.mdc`);
 		if (text.includes("cursor-team-kit")) leftover.push(`${rel}: cursor-team-kit`);
 		if (text.includes("<<<<<<<")) leftover.push(`${rel}: merge marker`);
 		if (text.includes("Task subagent")) leftover.push(`${rel}: Task subagent`);
@@ -766,8 +782,7 @@ export function main(argv = process.argv.slice(2)) {
 	assertNoCursorSeams(args.to);
 }
 
-const isMain =
-	process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
+const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);
 if (isMain) {
 	try {
 		main(process.argv.slice(2));

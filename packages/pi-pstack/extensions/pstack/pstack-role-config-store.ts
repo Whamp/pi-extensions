@@ -15,6 +15,7 @@ import {
 	decodePstackLegacyMarkdownText,
 	defaultPstackRoleConfig,
 	pstackConfigDiagnostic,
+	type PstackConfigDiagnosticCode,
 	type PstackConfigReadResult,
 	type PstackConfigWriteResult,
 } from "./pstack-role-config.ts";
@@ -26,38 +27,45 @@ function isErrnoException(error: unknown): error is NodeJS.ErrnoException {
 	return typeof error === "object" && error !== null && "code" in error;
 }
 
-function readFailure(path: string): PstackConfigReadResult {
+function cleanupTemporaryFile(path: string): string {
+	try {
+		if (existsSync(path)) unlinkSync(path);
+		return "";
+	} catch {
+		return ` Temporary file ${path} could not be removed.`;
+	}
+}
+
+function invalidReadResult(
+	code: PstackConfigDiagnosticCode,
+	message: string,
+): PstackConfigReadResult {
 	return {
 		config: defaultPstackRoleConfig(),
 		source: "invalid",
-		diagnostics: [
-			pstackConfigDiagnostic("config-read-failed", "error", `Failed to read ${path}. Using default inherited roles.`),
-		],
+		diagnostics: [pstackConfigDiagnostic(code, "error", message)],
 	};
+}
+
+function readFailure(path: string): PstackConfigReadResult {
+	return invalidReadResult(
+		"config-read-failed",
+		`Failed to read ${path}. Using default inherited roles.`,
+	);
 }
 
 function notRegularFile(path: string): PstackConfigReadResult {
-	return {
-		config: defaultPstackRoleConfig(),
-		source: "invalid",
-		diagnostics: [
-			pstackConfigDiagnostic("not-regular-file", "error", `${path} is not a regular file. Using default inherited roles.`),
-		],
-	};
+	return invalidReadResult(
+		"not-regular-file",
+		`${path} is not a regular file. Using default inherited roles.`,
+	);
 }
 
 function tooLarge(path: string): PstackConfigReadResult {
-	return {
-		config: defaultPstackRoleConfig(),
-		source: "invalid",
-		diagnostics: [
-			pstackConfigDiagnostic(
-				"config-too-large",
-				"error",
-				`${path} exceeds ${MAX_CONFIG_BYTES} bytes. Using default inherited roles.`,
-			),
-		],
-	};
+	return invalidReadResult(
+		"config-too-large",
+		`${path} exceeds ${MAX_CONFIG_BYTES} bytes. Using default inherited roles.`,
+	);
 }
 
 function loadMarkdownOrMissing(jsonPath: string, markdownPath: string): PstackConfigReadResult {
@@ -88,7 +96,8 @@ function readPstackRoleConfigFile(path: string, markdownPath: string): PstackCon
 	try {
 		st = lstatSync(path);
 	} catch (error) {
-		if (isErrnoException(error) && error.code === "ENOENT") return loadMarkdownOrMissing(path, markdownPath);
+		if (isErrnoException(error) && error.code === "ENOENT")
+			return loadMarkdownOrMissing(path, markdownPath);
 		return readFailure(path);
 	}
 	if (!st.isFile()) return notRegularFile(path);
@@ -125,7 +134,10 @@ function serializePstackRoleConfig(config: PstackRoleConfig): string {
 	return `${JSON.stringify({ version: 2, roles, skillsEnabled: config.skillsEnabled }, null, 2)}\n`;
 }
 
-function writeAtomicUtf8File(path: string, body: string): { ok: true } | { ok: false; message: string } {
+function writeAtomicUtf8File(
+	path: string,
+	body: string,
+): { ok: true } | { ok: false; message: string } {
 	const dir = dirname(path);
 	const tmp = join(dir, `.${basename(path)}.${process.pid}.${Date.now()}.tmp`);
 	try {
@@ -142,16 +154,14 @@ function writeAtomicUtf8File(path: string, body: string): { ok: true } | { ok: f
 		renameSync(tmp, path);
 		return { ok: true };
 	} catch {
-		try {
-			if (existsSync(tmp)) unlinkSync(tmp);
-		} catch {
-			// best-effort temp cleanup
-		}
-		return { ok: false, message: `Failed to write ${path}.` };
+		return { ok: false, message: `Failed to write ${path}.${cleanupTemporaryFile(tmp)}` };
 	}
 }
 
-function writeNewAtomicUtf8File(path: string, body: string): { ok: true } | { ok: false; message: string } {
+function writeNewAtomicUtf8File(
+	path: string,
+	body: string,
+): { ok: true } | { ok: false; message: string } {
 	const dir = dirname(path);
 	const tmp = join(dir, `.${basename(path)}.${process.pid}.${Date.now()}.tmp`);
 	try {
@@ -161,26 +171,30 @@ function writeNewAtomicUtf8File(path: string, body: string): { ok: true } | { ok
 		unlinkSync(tmp);
 		return { ok: true };
 	} catch {
-		try {
-			if (existsSync(tmp)) unlinkSync(tmp);
-		} catch {
-			// best-effort temp cleanup
-		}
-		return { ok: false, message: `Failed to create ${path}; it may already exist.` };
+		return {
+			ok: false,
+			message: `Failed to create ${path}; it may already exist.${cleanupTemporaryFile(tmp)}`,
+		};
 	}
 }
 
 function verifySourceBytes(
 	path: string,
 	expectedBytes: string,
-): { ok: true; bytes: string } | { ok: false; diagnostic: ReturnType<typeof pstackConfigDiagnostic> } {
+):
+	| { ok: true; bytes: string }
+	| { ok: false; diagnostic: ReturnType<typeof pstackConfigDiagnostic> } {
 	let currentBytes: string;
 	try {
 		const st = lstatSync(path);
 		if (!st.isFile()) {
 			return {
 				ok: false,
-				diagnostic: pstackConfigDiagnostic("not-regular-file", "error", `${path} is not a regular file.`),
+				diagnostic: pstackConfigDiagnostic(
+					"not-regular-file",
+					"error",
+					`${path} is not a regular file.`,
+				),
 			};
 		}
 		currentBytes = readFileSync(path, "utf8");

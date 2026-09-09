@@ -13,7 +13,9 @@ const SELECTOR = "openai-codex/gpt-5.6-sol:high";
 const SELECTOR_B = "xai/grok-4.6:high";
 const SELECTOR_C = "zai/glm-5.3:max";
 
-function config(roles: Record<string, string | string[]>): ReturnType<typeof decodePstackConfigText>["config"] {
+function config(
+	roles: Record<string, string | string[]>,
+): ReturnType<typeof decodePstackConfigText>["config"] {
 	return decodePstackConfigText(JSON.stringify({ version: 2, roles, skillsEnabled: true })).config;
 }
 

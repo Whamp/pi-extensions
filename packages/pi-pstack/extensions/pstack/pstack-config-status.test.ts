@@ -42,7 +42,10 @@ describe("formatPstackStatus", () => {
 		);
 		const status = formatPstackStatus(result);
 		assert.equal(status.includes("pstack skills on."), true);
-		assert.equal(status.includes("Source: v1. Migrated in memory. Run /setup-pstack to save v2."), true);
+		assert.equal(
+			status.includes("Source: v1. Migrated in memory. Run /setup-pstack to save v2."),
+			true,
+		);
 		assert.equal(status.includes("Warnings: 1. Errors: 0."), true);
 		assert.equal(status.includes("ambiguous-legacy-selection [feature, refactoring]:"), true);
 		assert.equal(status.includes("legacy-migrated"), false);
@@ -52,10 +55,16 @@ describe("formatPstackStatus", () => {
 describe("pstackSessionStartWarning", () => {
 	it("warns once for warning or error diagnostics and stays silent for missing or info-only v1", () => {
 		assert.equal(
-			pstackSessionStartWarning({ config: defaultPstackRoleConfig(), source: "missing", diagnostics: [] }),
+			pstackSessionStartWarning({
+				config: defaultPstackRoleConfig(),
+				source: "missing",
+				diagnostics: [],
+			}),
 			undefined,
 		);
-		const infoOnly = decodePstackConfigText(JSON.stringify({ version: 1, roles: { "bug-fix": SELECTOR } }));
+		const infoOnly = decodePstackConfigText(
+			JSON.stringify({ version: 1, roles: { "bug-fix": SELECTOR } }),
+		);
 		assert.equal(
 			infoOnly.diagnostics.every((diagnostic) => diagnostic.severity === "info"),
 			true,
@@ -64,7 +73,10 @@ describe("pstackSessionStartWarning", () => {
 		const noisy = decodePstackConfigText(
 			JSON.stringify({ version: 1, roles: { "feature, refactoring": [SELECTOR, SELECTOR_B] } }),
 		);
-		assert.equal(pstackSessionStartWarning(noisy), "pstack config needs attention. Run /pstack status.");
+		assert.equal(
+			pstackSessionStartWarning(noisy),
+			"pstack config needs attention. Run /pstack status.",
+		);
 		assert.equal(
 			pstackSessionStartWarning(decodePstackConfigText("{not json")),
 			"pstack config needs attention. Run /pstack status.",
@@ -75,17 +87,29 @@ describe("pstackSessionStartWarning", () => {
 describe("canPersistPstackSkillsToggle / pstackSetupSaveKind", () => {
 	it("allows a skills toggle only for missing or clean v2 documents", () => {
 		assert.equal(
-			canPersistPstackSkillsToggle({ config: defaultPstackRoleConfig(), source: "missing", diagnostics: [] }),
+			canPersistPstackSkillsToggle({
+				config: defaultPstackRoleConfig(),
+				source: "missing",
+				diagnostics: [],
+			}),
 			true,
 		);
-		const clean = decodePstackConfigText(JSON.stringify({ version: 2, roles: { "bug-fix": SELECTOR } }));
+		const clean = decodePstackConfigText(
+			JSON.stringify({ version: 2, roles: { "bug-fix": SELECTOR } }),
+		);
 		assert.equal(canPersistPstackSkillsToggle(clean), true);
 		assert.equal(pstackSetupSaveKind(clean), "atomic-v2");
 		assert.equal(
-			pstackSetupSaveKind({ config: defaultPstackRoleConfig(), source: "missing", diagnostics: [] }),
+			pstackSetupSaveKind({
+				config: defaultPstackRoleConfig(),
+				source: "missing",
+				diagnostics: [],
+			}),
 			"create",
 		);
-		const v1 = decodePstackConfigText(JSON.stringify({ version: 1, roles: { "bug-fix": SELECTOR } }));
+		const v1 = decodePstackConfigText(
+			JSON.stringify({ version: 1, roles: { "bug-fix": SELECTOR } }),
+		);
 		assert.equal(canPersistPstackSkillsToggle(v1), false);
 		assert.equal(pstackSetupSaveKind(v1), "backup-legacy");
 		assert.equal(pstackSetupSaveKind({ ...v1, source: "markdown" }), "backup-legacy");

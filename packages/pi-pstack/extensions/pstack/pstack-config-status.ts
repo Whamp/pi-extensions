@@ -3,8 +3,12 @@ import type { PstackConfigDiagnostic, PstackConfigReadResult } from "./pstack-ro
 /** How /setup-pstack may persist the completed wizard. */
 export type PstackSetupSaveKind = "create" | "atomic-v2" | "backup-legacy" | "confirm-replace";
 
-function attentionDiagnostics(diagnostics: readonly PstackConfigDiagnostic[]): PstackConfigDiagnostic[] {
-	return diagnostics.filter((diagnostic) => diagnostic.severity === "warning" || diagnostic.severity === "error");
+function attentionDiagnostics(
+	diagnostics: readonly PstackConfigDiagnostic[],
+): PstackConfigDiagnostic[] {
+	return diagnostics.filter(
+		(diagnostic) => diagnostic.severity === "warning" || diagnostic.severity === "error",
+	);
 }
 
 function formatSourceState(source: PstackConfigReadResult["source"]): string {
@@ -20,8 +24,8 @@ function formatSourceState(source: PstackConfigReadResult["source"]): string {
 		case "missing":
 			return "Source: missing.";
 		default: {
-			const _exhaustive: never = source;
-			return _exhaustive;
+			const unhandledSource: never = source;
+			return unhandledSource;
 		}
 	}
 }

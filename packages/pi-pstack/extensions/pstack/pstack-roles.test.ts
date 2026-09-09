@@ -47,7 +47,12 @@ describe("PSTACK_ROLES", () => {
 	});
 
 	it("treats repeat as one selector, not a list", () => {
-		for (const name of ["hillclimb", "how explorers", "why investigators", "swarm workers"] as const) {
+		for (const name of [
+			"hillclimb",
+			"how explorers",
+			"why investigators",
+			"swarm workers",
+		] as const) {
 			assert.equal(PSTACK_ROLES[name].cardinality, "repeat");
 		}
 	});

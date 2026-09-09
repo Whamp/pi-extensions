@@ -17,7 +17,9 @@ function tempDir(): string {
 	return mkdtempSync(join(tmpdir(), "pstack-extension-"));
 }
 
-function withAgentDir<T>(fn: (paths: { dir: string; jsonPath: string; markdownPath: string }) => Promise<T>): Promise<T> {
+function withAgentDir<T>(
+	fn: (paths: { dir: string; jsonPath: string; markdownPath: string }) => Promise<T>,
+): Promise<T> {
 	const dir = tempDir();
 	const previous = process.env.PI_CODING_AGENT_DIR;
 	process.env.PI_CODING_AGENT_DIR = dir;
@@ -47,7 +49,10 @@ function loadExtension() {
 		on(event: string, handler: (event: unknown, ctx: unknown) => unknown) {
 			events.set(event, handler);
 		},
-		registerCommand(name: string, options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }) {
+		registerCommand(
+			name: string,
+			options: { handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> },
+		) {
 			commands.set(name, options);
 		},
 		appendEntry() {},
@@ -65,10 +70,12 @@ function makeCtx(options?: {
 	scopedModels?: Array<{ model: { provider: string; id: string }; thinkingLevel?: string }>;
 	available?: Array<{ provider: string; id: string }>;
 	sessionEntries?: Array<{ type?: string; customType?: string; data?: { enabled?: unknown } }>;
+	onSelect?: (selectionNumber: number) => void;
 }) {
 	const notifies: Notify[] = [];
 	const selectTitles: string[] = [];
 	const answers = [...(options?.selects ?? [])];
+	let selectCount = 0;
 	const ctx = {
 		hasUI: options?.hasUI ?? true,
 		mode: options?.mode ?? "tui",
@@ -85,8 +92,10 @@ function makeCtx(options?: {
 				notifies.push({ message, level });
 			},
 			setStatus() {},
-			async select(title: string, _choices: string[]) {
+			async select(title: string) {
 				selectTitles.push(title);
+				selectCount += 1;
+				options?.onSelect?.(selectCount);
 				if (answers.length === 0) return undefined;
 				return answers.shift();
 			},
@@ -118,14 +127,8 @@ describe("pstack extension v2 runtime", () => {
 			assert.ok(result && typeof result === "object" && "systemPrompt" in result);
 			const prompt = (result as { systemPrompt: string }).systemPrompt;
 			assert.equal(prompt.includes("BASE"), true);
-			assert.equal(
-				prompt.includes(`feature implementation [single]: "${SELECTOR}"`),
-				true,
-			);
-			assert.equal(
-				prompt.includes(`refactoring implementation [single]: "${SELECTOR}"`),
-				true,
-			);
+			assert.equal(prompt.includes(`feature implementation [single]: "${SELECTOR}"`), true);
+			assert.equal(prompt.includes(`refactoring implementation [single]: "${SELECTOR}"`), true);
 			assert.equal(prompt.includes("feature, refactoring"), false);
 			assert.equal(prompt.includes("how critics"), false);
 			assert.equal(prompt.includes("legacy-migrated"), false);
@@ -167,7 +170,10 @@ describe("pstack extension v2 runtime", () => {
 		await withAgentDir(async () => {
 			const { events } = loadExtension();
 			const missing = makeCtx({ mode: "tui" });
-			await events.get("session_start")?.({ type: "session_start", reason: "startup" }, missing.ctx);
+			await events.get("session_start")?.(
+				{ type: "session_start", reason: "startup" },
+				missing.ctx,
+			);
 			assert.deepEqual(missing.notifies, []);
 		});
 	});
@@ -182,7 +188,10 @@ describe("pstack extension v2 runtime", () => {
 			const { commands } = loadExtension();
 			const ctx = makeCtx();
 			await commands.get("pstack")?.handler("off", ctx.ctx);
-			assert.equal(ctx.notifies[0]?.message, "pstack skills off. Hidden from the model; /skill:<name> still works.");
+			assert.equal(
+				ctx.notifies[0]?.message,
+				"pstack skills off. Hidden from the model; /skill:<name> still works.",
+			);
 			const saved = JSON.parse(readFileSync(jsonPath, "utf8")) as {
 				version: number;
 				skillsEnabled: boolean;
@@ -213,23 +222,27 @@ describe("pstack extension v2 runtime", () => {
 			});
 			const { commands } = loadExtension();
 			const cancelled = makeCtx({
-				scopedModels: [{ model: { provider: "openai-codex", id: "gpt-5.6-sol" }, thinkingLevel: "high" }],
+				scopedModels: [
+					{ model: { provider: "openai-codex", id: "gpt-5.6-sol" }, thinkingLevel: "high" },
+				],
 				selects: [undefined],
 			});
 			await commands.get("setup-pstack")?.handler("", cancelled.ctx);
 			assert.equal(readFileSync(jsonPath, "utf8"), original);
-			assert.equal(cancelled.notifies.some((note) => note.message.includes("Nothing was written")), true);
+			assert.equal(
+				cancelled.notifies.some((note) => note.message.includes("Nothing was written")),
+				true,
+			);
 		});
 
 		await withAgentDir(async ({ jsonPath }) => {
 			writeJson(jsonPath, { version: 2, roles: {}, skillsEnabled: true });
 			const { commands } = loadExtension();
-			const selects = [
-				SELECTOR,
-				...Array.from({ length: 21 }, () => "inherit-parent"),
-			];
+			const selects = [SELECTOR, ...Array.from({ length: 21 }, () => "inherit-parent")];
 			const ctx = makeCtx({
-				scopedModels: [{ model: { provider: "openai-codex", id: "gpt-5.6-sol" }, thinkingLevel: "high" }],
+				scopedModels: [
+					{ model: { provider: "openai-codex", id: "gpt-5.6-sol" }, thinkingLevel: "high" },
+				],
 				selects,
 			});
 			await commands.get("setup-pstack")?.handler("", ctx.ctx);
@@ -269,76 +282,49 @@ describe("pstack extension v2 runtime", () => {
 		await withAgentDir(async ({ jsonPath }) => {
 			writeJson(jsonPath, { version: 1, roles: { "bug-fix": SELECTOR } });
 			const { commands } = loadExtension();
-			let selectCount = 0;
-			const notifies: Notify[] = [];
-			const ctx = {
-				hasUI: true,
-				mode: "tui",
-				scopedModels: [],
-				modelRegistry: { getAvailable: () => [{ provider: "xai", id: "grok-4.6" }] },
-				sessionManager: { getEntries: () => [] },
-				isIdle: () => true,
-				ui: {
-					notify(message: string, level?: "info" | "warning" | "error") {
-						notifies.push({ message, level });
-					},
-					setStatus() {},
-					async select() {
-						selectCount += 1;
-						if (selectCount === 1) {
-							writeFileSync(
-								jsonPath,
-								`${JSON.stringify({ version: 1, roles: { "bug-fix": SELECTOR_B } }, null, 2)}\n`,
-								"utf8",
-							);
-						}
-						return "inherit-parent";
-					},
-					async confirm() {
-						return false;
-					},
+			const ctx = makeCtx({
+				available: [{ provider: "xai", id: "grok-4.6" }],
+				selects: Array.from({ length: 22 }, () => "inherit-parent"),
+				onSelect(selectionNumber) {
+					if (selectionNumber !== 1) return;
+					writeJson(jsonPath, { version: 1, roles: { "bug-fix": SELECTOR_B } });
 				},
-			};
-			await commands.get("setup-pstack")?.handler("", ctx as unknown as ExtensionCommandContext);
+			});
+			await commands.get("setup-pstack")?.handler("", ctx.ctx);
 			assert.equal(existsSync(`${jsonPath}.bak`), false);
 			assert.equal(JSON.parse(readFileSync(jsonPath, "utf8")).roles["bug-fix"], SELECTOR_B);
-			assert.equal(notifies.some((note) => note.level === "error"), true);
-			assert.equal(notifies.some((note) => note.message.includes("changed after it was loaded")), true);
+			assert.equal(
+				ctx.notifies.some((note) => note.level === "error"),
+				true,
+			);
+			assert.equal(
+				ctx.notifies.some((note) => note.message.includes("changed after it was loaded")),
+				true,
+			);
 		});
 
 		await withAgentDir(async ({ jsonPath }) => {
 			writeJson(jsonPath, { version: 2, roles: { "bug-fix": SELECTOR }, skillsEnabled: true });
 			const { commands } = loadExtension();
-			let selectCount = 0;
-			const notifies: Notify[] = [];
-			const ctx = {
-				hasUI: true,
-				mode: "tui",
-				scopedModels: [],
-				modelRegistry: { getAvailable: () => [{ provider: "xai", id: "grok-4.6" }] },
-				sessionManager: { getEntries: () => [] },
-				isIdle: () => true,
-				ui: {
-					notify(message: string, level?: "info" | "warning" | "error") {
-						notifies.push({ message, level });
-					},
-					setStatus() {},
-					async select() {
-						selectCount += 1;
-						if (selectCount === 1) {
-							writeJson(jsonPath, { version: 2, roles: { "bug-fix": SELECTOR_B }, skillsEnabled: true });
-						}
-						return "inherit-parent";
-					},
-					async confirm() {
-						return false;
-					},
+			const ctx = makeCtx({
+				available: [{ provider: "xai", id: "grok-4.6" }],
+				selects: Array.from({ length: 22 }, () => "inherit-parent"),
+				onSelect(selectionNumber) {
+					if (selectionNumber !== 1) return;
+					writeJson(jsonPath, {
+						version: 2,
+						roles: { "bug-fix": SELECTOR_B },
+						skillsEnabled: true,
+					});
 				},
-			};
-			await commands.get("setup-pstack")?.handler("", ctx as unknown as ExtensionCommandContext);
+			});
+			await commands.get("setup-pstack")?.handler("", ctx.ctx);
 			assert.equal(existsSync(`${jsonPath}.bak`), false);
 			assert.equal(JSON.parse(readFileSync(jsonPath, "utf8")).roles["bug-fix"], SELECTOR_B);
-			assert.equal(notifies.some((note) => note.message.includes("changed after it was loaded")), true);
+			assert.equal(
+				ctx.notifies.some((note) => note.message.includes("changed after it was loaded")),
+				true,
+			);
 		});
 	});
 

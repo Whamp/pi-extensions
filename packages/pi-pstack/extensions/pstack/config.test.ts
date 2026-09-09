@@ -21,7 +21,10 @@ describe("isSafeModelSelector", () => {
 
 describe("getAgentDir / configPath / legacyMarkdownPath", () => {
 	it("defaults to ~/.pi/agent and the pstack JSON / markdown paths", () => {
-		assert.equal(getAgentDir({}, () => "/home/u"), join("/home/u", ".pi", "agent"));
+		assert.equal(
+			getAgentDir({}, () => "/home/u"),
+			join("/home/u", ".pi", "agent"),
+		);
 		assert.equal(
 			configPath({}, () => "/home/u"),
 			join("/home/u", ".pi", "agent", "pstack", "models.json"),

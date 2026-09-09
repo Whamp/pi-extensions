@@ -6,20 +6,27 @@ const MAX_MODEL_KEY_LENGTH = 256;
 const INHERIT_SELECTORS = new Set(["inherit-parent", "auto"]);
 
 /** Resolve the Pi coding-agent directory, expanding PI_CODING_AGENT_DIR and ~. */
-export function getAgentDir(env: NodeJS.ProcessEnv = process.env, home: () => string = homedir): string {
+export function getAgentDir(
+	env: NodeJS.ProcessEnv = process.env,
+	home: () => string = homedir,
+): string {
 	const envDir = env.PI_CODING_AGENT_DIR;
-	return envDir
-		? envDir.replace(/^~(\/|$)/, `${home()}$1`)
-		: join(home(), ".pi", "agent");
+	return envDir ? envDir.replace(/^~(\/|$)/, `${home()}$1`) : join(home(), ".pi", "agent");
 }
 
 /** Path to ~/.pi/agent/pstack/models.json. */
-export function configPath(env: NodeJS.ProcessEnv = process.env, home: () => string = homedir): string {
+export function configPath(
+	env: NodeJS.ProcessEnv = process.env,
+	home: () => string = homedir,
+): string {
 	return join(getAgentDir(env, home), "pstack", "models.json");
 }
 
 /** Path to leftover ~/.pi/agent/pstack-models.md. */
-export function legacyMarkdownPath(env: NodeJS.ProcessEnv = process.env, home: () => string = homedir): string {
+export function legacyMarkdownPath(
+	env: NodeJS.ProcessEnv = process.env,
+	home: () => string = homedir,
+): string {
 	return join(getAgentDir(env, home), "pstack-models.md");
 }
 
@@ -28,7 +35,11 @@ export function isSafeModelSelector(value: unknown): value is string {
 	if (typeof value !== "string") return false;
 	if (INHERIT_SELECTORS.has(value)) return true;
 	if (!value || value.length > MAX_MODEL_KEY_LENGTH) return false;
-	if (/[\u0000-\u001f\u007f\\]/.test(value)) return false;
+	for (const character of value) {
+		const codePoint = character.codePointAt(0);
+		if (character === "\\" || codePoint === undefined || codePoint <= 0x1f || codePoint === 0x7f)
+			return false;
+	}
 
 	const slash = value.indexOf("/");
 	if (slash <= 0 || slash === value.length - 1) return false;

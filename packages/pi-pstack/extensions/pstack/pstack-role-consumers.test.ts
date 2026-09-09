@@ -282,7 +282,10 @@ const LEGACY_ONLY_PATTERNS: ReadonlyArray<{ readonly id: string; readonly patter
 	{ id: "judgment and prose", pattern: /judgment and prose/ },
 	{ id: "how explorer", pattern: /how explorer(?!s)/ },
 	{ id: "arena cross-judge pool", pattern: /arena cross-judge pool/ },
-	{ id: "reflect judgment, divergent, synthesizer", pattern: /reflect judgment, divergent, synthesizer/ },
+	{
+		id: "reflect judgment, divergent, synthesizer",
+		pattern: /reflect judgment, divergent, synthesizer/,
+	},
 	{ id: "how critics", pattern: /how critics/ },
 	{ id: "reflect tooling", pattern: /reflect tooling(?! reviewer)/ },
 ];
@@ -332,7 +335,9 @@ function roleConsumerMismatches(files: ReadonlyMap<string, string>): string[] {
 				continue;
 			}
 			if (!section.includes(expected.line)) {
-				mismatches.push(`${spec.file}: ${expected.section} missing ${JSON.stringify(expected.line)}`);
+				mismatches.push(
+					`${spec.file}: ${expected.section} missing ${JSON.stringify(expected.line)}`,
+				);
 			}
 			const found = backtickRolesIn(expected.line);
 			if (JSON.stringify(found) !== JSON.stringify(expected.roles)) {
@@ -399,7 +404,11 @@ describe("pstack role consumers", () => {
 		for (const rel of rels) {
 			if (LEGACY_NAME_ALLOWLIST.has(rel)) continue;
 			if (rel.endsWith(".test.ts") || rel.endsWith(".test.mjs")) {
-				if (rel.includes("pstack-role-") || rel.includes("pstack-extension") || rel.includes("pstack-config-status")) {
+				if (
+					rel.includes("pstack-role-") ||
+					rel === "extensions/pstack/index.test.ts" ||
+					rel.includes("pstack-config-status")
+				) {
 					continue;
 				}
 			}

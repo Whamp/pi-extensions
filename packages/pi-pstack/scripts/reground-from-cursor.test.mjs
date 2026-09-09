@@ -74,10 +74,6 @@ function classTable(planned, kind) {
 		.sort((a, b) => (a[0] < b[0] ? -1 : 1));
 }
 
-function relTable(planned, kind) {
-	return planned.actions.filter((action) => action.kind === kind).map((action) => action.rel).sort();
-}
-
 test("asRelPath rejects traversal and absolute paths", () => {
 	assert.throws(() => asRelPath(".."));
 	assert.throws(() => asRelPath("foo/../bar"));
@@ -87,7 +83,10 @@ test("asRelPath rejects traversal and absolute paths", () => {
 });
 
 test("classify maps Cursor-relative paths to copy classes", () => {
-	assert.equal(classify(asRelPath("skills/typescript-best-practices/references/patterns.md")), "copy");
+	assert.equal(
+		classify(asRelPath("skills/typescript-best-practices/references/patterns.md")),
+		"copy",
+	);
 	assert.equal(classify(asRelPath("skills/how/SKILL.md")), "adapt");
 	assert.equal(classify(asRelPath("skills/setup-pstack/SKILL.md")), "pi-only");
 	assert.equal(classify(asRelPath("skills/setup-pstack/references/MODEL-ROLES.md")), "pi-only");
@@ -96,7 +95,10 @@ test("classify maps Cursor-relative paths to copy classes", () => {
 	assert.equal(classify(asRelPath("agents/poteto-agent.md")), "never-copy");
 	assert.equal(classify(asRelPath("skills/poteto-mode/scripts/package.json")), "pi-only");
 	assert.equal(classify(asRelPath("skills/poteto-mode/scripts/worktree-audit.sh")), "pi-only");
-	assert.throws(() => classify(asRelPath("extensions/pstack/index.ts")), /unclassified Cursor path/);
+	assert.throws(
+		() => classify(asRelPath("extensions/pstack/index.ts")),
+		/unclassified Cursor path/,
+	);
 });
 
 test("plan dry-run maps the fixture Cursor tree to write, skip, and delete actions", () => {
@@ -120,7 +122,11 @@ test("plan dry-run maps the fixture Cursor tree to write, skip, and delete actio
 		["skills/setup-pstack/SKILL.md", "pi-only"],
 	]);
 
-	assert.deepEqual(relTable(planned, "delete"), [
+	const deleted = planned.actions
+		.filter((action) => action.kind === "delete")
+		.map((action) => action.rel)
+		.sort();
+	assert.deepEqual(deleted, [
 		"skills/how/references/critic-prompt.md",
 		"skills/how/references/critique-rubric.md",
 		"skills/legacy-skill/SKILL.md",
@@ -152,7 +158,10 @@ test("plan dry-run derives count and config patches only for a stale destination
 	);
 
 	const synced = plan({ from: cursorDir, to: piSyncedDir, dryRun: true });
-	assert.deepEqual(synced.actions.filter((action) => action.derived), []);
+	assert.deepEqual(
+		synced.actions.filter((action) => action.derived),
+		[],
+	);
 	assert.deepEqual(synced.counts, stale.counts);
 });
 

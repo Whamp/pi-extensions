@@ -31,6 +31,7 @@ export const PSTACK_CONFIG_DIAGNOSTIC_CODES = [
 	"config-write-failed",
 ] as const;
 
+/** Stable machine-readable reason for one config diagnostic. */
 export type PstackConfigDiagnosticCode = (typeof PSTACK_CONFIG_DIAGNOSTIC_CODES)[number];
 
 /** Structured config diagnostic. Codes are the finite PstackConfigDiagnosticCode union. */
@@ -57,13 +58,9 @@ export type PstackConfigWriteResult =
 	| { readonly ok: true; readonly path: string; readonly backupPath?: string }
 	| { readonly ok: false; readonly diagnostics: readonly PstackConfigDiagnostic[] };
 
-function defaultRoleConfig(): PstackRoleConfig {
-	return { version: 2, roles: {}, skillsEnabled: true };
-}
-
 /** Empty v2 config. Omitted roles inherit and skills stay enabled. */
 export function defaultPstackRoleConfig(): PstackRoleConfig {
-	return defaultRoleConfig();
+	return { version: 2, roles: {}, skillsEnabled: true };
 }
 
 /** Build a pstack config diagnostic with a finite code. */
@@ -84,10 +81,6 @@ function describeConfigPath(path?: string): string {
 	return path ?? "pstack models.json";
 }
 
-function isInheritAlias(value: string): boolean {
-	return INHERIT_ALIASES.has(value);
-}
-
 function brandModelSelector(value: string): PstackModelSelector {
 	// SAFETY: isSafeModelSelector already accepted this string.
 	return value as PstackModelSelector;
@@ -105,7 +98,11 @@ function parseSkillsEnabledFlag(
 	if (raw.skillsEnabled === undefined) return true;
 	if (raw.skillsEnabled === true || raw.skillsEnabled === false) return raw.skillsEnabled;
 	diagnostics.push(
-		pstackConfigDiagnostic("invalid-skills-enabled", "warning", "Invalid skillsEnabled flag. Defaulting to true."),
+		pstackConfigDiagnostic(
+			"invalid-skills-enabled",
+			"warning",
+			"Invalid skillsEnabled flag. Defaulting to true.",
+		),
 	);
 	return true;
 }
@@ -127,7 +124,9 @@ function assignNormalizedRole(
 	roles[name] = value;
 }
 
-function typedRoleSelections(roles: Record<string, string | readonly string[]>): PstackRoleSelections {
+function typedRoleSelections(
+	roles: Record<string, string | readonly string[]>,
+): PstackRoleSelections {
 	// SAFETY: keys are registry role names and values passed cardinality checks.
 	return roles as PstackRoleSelections;
 }
@@ -151,7 +150,7 @@ function migrateV1RoleValue(
 	diagnostics: PstackConfigDiagnostic[],
 ): void {
 	if (typeof value === "string") {
-		if (isInheritAlias(value)) return;
+		if (INHERIT_ALIASES.has(value)) return;
 		if (!isSafeModelSelector(value)) {
 			diagnostics.push(
 				pstackConfigDiagnostic(
@@ -182,7 +181,7 @@ function migrateV1RoleValue(
 	let inheritCount = 0;
 	for (let index = 0; index < value.length; index++) {
 		const item = value[index];
-		if (typeof item === "string" && isInheritAlias(item)) {
+		if (typeof item === "string" && INHERIT_ALIASES.has(item)) {
 			inheritCount += 1;
 			continue;
 		}
@@ -297,7 +296,7 @@ function decodeV2RoleValue(
 	const cardinality = PSTACK_ROLES[role].cardinality;
 
 	if (typeof value === "string") {
-		if (isInheritAlias(value)) return undefined;
+		if (INHERIT_ALIASES.has(value)) return undefined;
 		if (!isSafeModelSelector(value)) {
 			diagnostics.push(
 				pstackConfigDiagnostic(
@@ -360,7 +359,7 @@ function decodeV2RoleValue(
 	const selectors: PstackModelSelector[] = [];
 	for (let index = 0; index < value.length; index++) {
 		const item = value[index];
-		if (typeof item === "string" && isInheritAlias(item)) {
+		if (typeof item === "string" && INHERIT_ALIASES.has(item)) {
 			diagnostics.push(
 				pstackConfigDiagnostic(
 					"invalid-role-selection",
@@ -409,12 +408,9 @@ function decodeV2Document(raw: Record<string, unknown>, path?: string): PstackCo
 		}
 		if (!isPstackRoleName(key)) {
 			diagnostics.push(
-				pstackConfigDiagnostic(
-					"unknown-role",
-					"warning",
-					`Unknown role "${key}" has no effect.`,
-					{ role: key },
-				),
+				pstackConfigDiagnostic("unknown-role", "warning", `Unknown role "${key}" has no effect.`, {
+					role: key,
+				}),
 			);
 			continue;
 		}
@@ -428,46 +424,36 @@ function decodeV2Document(raw: Record<string, unknown>, path?: string): PstackCo
 	};
 }
 
+function invalidPstackConfig(
+	code: "invalid-document" | "invalid-json" | "unsupported-version",
+	message: string,
+): PstackConfigReadResult {
+	return {
+		config: defaultPstackRoleConfig(),
+		source: "invalid",
+		diagnostics: [pstackConfigDiagnostic(code, "error", message)],
+	};
+}
+
 function decodePstackConfigValue(raw: unknown, path?: string): PstackConfigReadResult {
 	if (!isJsonRecord(raw)) {
-		return {
-			config: defaultRoleConfig(),
-			source: "invalid",
-			diagnostics: [
-				pstackConfigDiagnostic(
-					"invalid-document",
-					"error",
-					`Invalid document in ${describeConfigPath(path)}. Using default inherited roles.`,
-				),
-			],
-		};
+		return invalidPstackConfig(
+			"invalid-document",
+			`Invalid document in ${describeConfigPath(path)}. Using default inherited roles.`,
+		);
 	}
 	if (raw.version === 1) return migrateV1Document(raw, path);
 	if (raw.version === 2) return decodeV2Document(raw, path);
 	if (raw.version === undefined) {
-		return {
-			config: defaultRoleConfig(),
-			source: "invalid",
-			diagnostics: [
-				pstackConfigDiagnostic(
-					"invalid-document",
-					"error",
-					`Invalid document in ${describeConfigPath(path)}. Using default inherited roles.`,
-				),
-			],
-		};
+		return invalidPstackConfig(
+			"invalid-document",
+			`Invalid document in ${describeConfigPath(path)}. Using default inherited roles.`,
+		);
 	}
-	return {
-		config: defaultRoleConfig(),
-		source: "invalid",
-		diagnostics: [
-			pstackConfigDiagnostic(
-				"unsupported-version",
-				"error",
-				`Unsupported version in ${describeConfigPath(path)}. Using default inherited roles.`,
-			),
-		],
-	};
+	return invalidPstackConfig(
+		"unsupported-version",
+		`Unsupported version in ${describeConfigPath(path)}. Using default inherited roles.`,
+	);
 }
 
 /** Decode pstack JSON text into a normalized v2 config. Never throws. */
@@ -475,17 +461,10 @@ export function decodePstackConfigText(text: string, path?: string): PstackConfi
 	try {
 		return decodePstackConfigValue(JSON.parse(text), path);
 	} catch {
-		return {
-			config: defaultRoleConfig(),
-			source: "invalid",
-			diagnostics: [
-				pstackConfigDiagnostic(
-					"invalid-json",
-					"error",
-					`Invalid JSON in ${describeConfigPath(path)}. Using default inherited roles.`,
-				),
-			],
-		};
+		return invalidPstackConfig(
+			"invalid-json",
+			`Invalid JSON in ${describeConfigPath(path)}. Using default inherited roles.`,
+		);
 	}
 }
 
@@ -509,6 +488,9 @@ function parseLegacyMarkdownRoles(text: string): Record<string, unknown> {
 }
 
 /** Decode legacy markdown role lines through the v1 migration boundary. Never throws. */
-export function decodePstackLegacyMarkdownText(text: string, path?: string): PstackConfigReadResult {
+export function decodePstackLegacyMarkdownText(
+	text: string,
+	path?: string,
+): PstackConfigReadResult {
 	return decodePstackConfigValue({ version: 1, roles: parseLegacyMarkdownRoles(text) }, path);
 }

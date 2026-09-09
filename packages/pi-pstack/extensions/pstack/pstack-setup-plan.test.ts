@@ -54,7 +54,9 @@ describe("pstackModelSelectorsFromSession", () => {
 
 	it("falls back to bare available models when scoped models are absent or empty", () => {
 		const available = [{ provider: "xai", id: "grok-4.6" }];
-		assert.deepEqual(pstackModelSelectorsFromSession({ availableModels: available }), ["xai/grok-4.6"]);
+		assert.deepEqual(pstackModelSelectorsFromSession({ availableModels: available }), [
+			"xai/grok-4.6",
+		]);
 		assert.deepEqual(
 			pstackModelSelectorsFromSession({ scopedModels: [], availableModels: available }),
 			["xai/grok-4.6"],
@@ -89,7 +91,10 @@ describe("buildPstackSetupPlan", () => {
 		assert.equal(plan.choices.includes(SELECTOR), true);
 		assert.equal(plan.choices.includes(SELECTOR_B), true);
 		assert.equal(plan.steps.find((step) => step.role === "bug-fix")?.current, SELECTOR_B);
-		assert.deepEqual(plan.steps.find((step) => step.role === "arena runners")?.current, [SELECTOR, SELECTOR]);
+		assert.deepEqual(plan.steps.find((step) => step.role === "arena runners")?.current, [
+			SELECTOR,
+			SELECTOR,
+		]);
 		for (const name of Object.keys(PSTACK_ROLES) as PstackRoleName[]) {
 			const step = plan.steps.find((entry) => entry.role === name);
 			assert.equal(step?.purpose, PSTACK_ROLES[name].purpose);

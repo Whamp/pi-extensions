@@ -4,7 +4,9 @@ import {
 	PSTACK_ROLE_NAMES,
 	PSTACK_ROLES,
 	type PstackRoleCardinality,
+	type PstackModelSelector,
 	type PstackRoleConfig,
+	type PstackRoleGroup,
 	type PstackRoleName,
 	type PstackRoleSelections,
 } from "./pstack-roles.ts";
@@ -23,23 +25,34 @@ export interface PstackSetupRoleStep {
 	readonly role: PstackRoleName;
 	readonly cardinality: PstackRoleCardinality;
 	readonly purpose: string;
-	readonly group: string;
+	readonly group: PstackRoleGroup;
 	readonly kind: "scalar" | "list";
-	readonly current: string | readonly string[] | undefined;
+	readonly current?: PstackModelSelector | readonly PstackModelSelector[];
 }
+
+type PstackSetupChoice = typeof PSTACK_INHERIT_PARENT | PstackModelSelector;
+type MutableSetupRoles = Record<string, PstackModelSelector | readonly PstackModelSelector[]>;
 
 /** Ordered setup plan for every pstack role. */
 export interface PstackSetupPlan {
 	readonly steps: readonly PstackSetupRoleStep[];
-	readonly choices: readonly string[];
+	readonly choices: readonly PstackSetupChoice[];
 }
 
-function uniqueSafeSelectors(selectors: readonly string[]): string[] {
-	const out: string[] = [];
+function checkedModelSelector(value: string): PstackModelSelector | undefined {
+	if (value === PSTACK_INHERIT_PARENT || value === "auto" || !isSafeModelSelector(value)) {
+		return undefined;
+	}
+	// SAFETY: PstackModelSelector is branded only after the shared selector validator accepts it.
+	return value as PstackModelSelector;
+}
+
+function uniqueSafeSelectors(selectors: readonly string[]): PstackModelSelector[] {
+	const out: PstackModelSelector[] = [];
 	const seen = new Set<string>();
-	for (const selector of selectors) {
-		if (selector === PSTACK_INHERIT_PARENT || selector === "auto") continue;
-		if (!isSafeModelSelector(selector) || seen.has(selector)) continue;
+	for (const value of selectors) {
+		const selector = checkedModelSelector(value);
+		if (selector === undefined || seen.has(selector)) continue;
 		seen.add(selector);
 		out.push(selector);
 	}
@@ -48,47 +61,29 @@ function uniqueSafeSelectors(selectors: readonly string[]): string[] {
 
 function scopedSelector(entry: PstackScopedModelEntry): string {
 	const base = `${entry.model.provider}/${entry.model.id}`;
-	return entry.thinkingLevel === undefined || entry.thinkingLevel === "" ? base : `${base}:${entry.thinkingLevel}`;
+	return entry.thinkingLevel === undefined || entry.thinkingLevel === ""
+		? base
+		: `${base}:${entry.thinkingLevel}`;
 }
 
 /** Build setup selectors from scoped models, preserving thinkingLevel suffixes. */
 export function pstackModelSelectorsFromSession(input: {
 	scopedModels?: readonly PstackScopedModelEntry[];
 	availableModels?: readonly { readonly provider: string; readonly id: string }[];
-}): string[] {
+}): PstackModelSelector[] {
 	if (input.scopedModels !== undefined && input.scopedModels.length > 0) {
 		return uniqueSafeSelectors(input.scopedModels.map(scopedSelector));
 	}
-	return uniqueSafeSelectors((input.availableModels ?? []).map((model) => `${model.provider}/${model.id}`));
-}
-
-function pstackSetupGroupLabel(role: PstackRoleName): string {
-	if (
-		role === "feature implementation" ||
-		role === "refactoring implementation" ||
-		role === "bug-fix" ||
-		role === "perf-issue" ||
-		role === "hillclimb"
-	) {
-		return "Implementation";
-	}
-	if (role === "judgment" || role === "prose" || role === "hardest tasks") return "Judgment and prose";
-	if (role.startsWith("how ")) return "How";
-	if (role.startsWith("why ")) return "Why";
-	if (role.startsWith("reflect ")) return "Reflect";
-	if (role.startsWith("arena ")) return "Arena";
-	if (role === "swarm workers") return "Swarm";
-	if (role === "architect runners") return "Architect";
-	if (role === "interrogate reviewers") return "Interrogate";
-	const _exhaustive: never = role;
-	return _exhaustive;
+	return uniqueSafeSelectors(
+		(input.availableModels ?? []).map((model) => `${model.provider}/${model.id}`),
+	);
 }
 
 function pstackSetupPickKind(cardinality: PstackRoleCardinality): "scalar" | "list" {
 	return cardinality === "fanout" || cardinality === "pick-one" ? "list" : "scalar";
 }
 
-function configuredSelectors(config: PstackRoleConfig): string[] {
+function configuredSelectors(config: PstackRoleConfig): PstackModelSelector[] {
 	const values: string[] = [];
 	for (const name of PSTACK_ROLE_NAMES) {
 		const value = config.roles[name];
@@ -101,19 +96,26 @@ function configuredSelectors(config: PstackRoleConfig): string[] {
 /** Build a registry-driven setup plan. Includes configured selectors even when unavailable. */
 export function buildPstackSetupPlan(input: {
 	config: PstackRoleConfig;
-	sessionSelectors: readonly string[];
+	sessionSelectors: readonly PstackModelSelector[];
 }): PstackSetupPlan {
-	const extras = configuredSelectors(input.config).filter((selector) => !input.sessionSelectors.includes(selector));
-	const choices = [PSTACK_INHERIT_PARENT, ...uniqueSafeSelectors(input.sessionSelectors), ...extras];
+	const extras = configuredSelectors(input.config).filter(
+		(selector) => !input.sessionSelectors.includes(selector),
+	);
+	const choices = [
+		PSTACK_INHERIT_PARENT,
+		...uniqueSafeSelectors(input.sessionSelectors),
+		...extras,
+	];
 	const steps: PstackSetupRoleStep[] = PSTACK_ROLE_NAMES.map((role) => {
 		const definition = PSTACK_ROLES[role];
+		const current = input.config.roles[role];
 		return {
 			role,
 			cardinality: definition.cardinality,
 			purpose: definition.purpose,
-			group: pstackSetupGroupLabel(role),
+			group: definition.group,
 			kind: pstackSetupPickKind(definition.cardinality),
-			current: input.config.roles[role],
+			...(current === undefined || current === PSTACK_INHERIT_PARENT ? {} : { current }),
 		};
 	});
 	return { steps, choices };
@@ -123,7 +125,10 @@ function stripCurrentMark(choice: string): string {
 	return choice.endsWith(" (current)") ? choice.slice(0, -" (current)".length) : choice;
 }
 
-function labeledChoices(choices: readonly string[], current: string | readonly string[] | undefined): string[] {
+function labeledChoices(
+	choices: readonly PstackSetupChoice[],
+	current: PstackModelSelector | readonly PstackModelSelector[] | undefined,
+): string[] {
 	const currents = new Set(Array.isArray(current) ? current : current ? [current] : []);
 	return choices.map((choice) => (currents.has(choice) ? `${choice} (current)` : choice));
 }
@@ -132,14 +137,7 @@ function rolePromptTitle(step: PstackSetupRoleStep): string {
 	return `${step.group}. ${step.role} [${step.cardinality}]. ${step.purpose}`;
 }
 
-function isInheritanceSelector(value: string): boolean {
-	return value === PSTACK_INHERIT_PARENT || value === "auto";
-}
-
-function omitRole(
-	roles: Record<string, string | readonly string[]>,
-	role: PstackRoleName,
-): Record<string, string | readonly string[]> {
+function omitRole(roles: MutableSetupRoles, role: PstackRoleName): MutableSetupRoles {
 	if (!(role in roles)) return roles;
 	const next = { ...roles };
 	delete next[role];
@@ -147,16 +145,26 @@ function omitRole(
 }
 
 function assignRole(
-	roles: Record<string, string | readonly string[]>,
+	roles: MutableSetupRoles,
 	role: PstackRoleName,
-	value: string | readonly string[],
-): Record<string, string | readonly string[]> {
+	value: PstackModelSelector | readonly PstackModelSelector[],
+): MutableSetupRoles {
 	return { ...roles, [role]: value };
 }
 
-function asRoleSelections(roles: Record<string, string | readonly string[]>): PstackRoleSelections {
+function asRoleSelections(roles: MutableSetupRoles): PstackRoleSelections {
 	// SAFETY: keys are registry role names and values passed selector safety checks.
 	return roles as PstackRoleSelections;
+}
+
+function mutableSetupRoles(config: PstackRoleConfig): MutableSetupRoles {
+	let roles: MutableSetupRoles = {};
+	for (const role of PSTACK_ROLE_NAMES) {
+		const value = config.roles[role];
+		if (value === undefined || value === PSTACK_INHERIT_PARENT) continue;
+		roles = assignRole(roles, role, value);
+	}
+	return roles;
 }
 
 /** Collect setup choices into a new config. Cancel returns undefined and does not reuse the loaded object. */
@@ -165,33 +173,45 @@ export async function collectPstackSetupSelections(input: {
 	plan: PstackSetupPlan;
 	select: (title: string, options: string[]) => Promise<string | undefined>;
 }): Promise<PstackRoleConfig | undefined> {
-	let roles: Record<string, string | readonly string[]> = { ...input.config.roles };
+	let roles = mutableSetupRoles(input.config);
 	for (const step of input.plan.steps) {
 		if (step.kind === "scalar") {
-			const choice = await input.select(rolePromptTitle(step), labeledChoices(input.plan.choices, step.current));
+			const choice = await input.select(
+				rolePromptTitle(step),
+				labeledChoices(input.plan.choices, step.current),
+			);
 			if (choice === undefined) return undefined;
-			const value = stripCurrentMark(choice);
-			roles = isInheritanceSelector(value) || !isSafeModelSelector(value) ? omitRole(roles, step.role) : assignRole(roles, step.role, value);
+			const value = checkedModelSelector(stripCurrentMark(choice));
+			roles =
+				value === undefined ? omitRole(roles, step.role) : assignRole(roles, step.role, value);
 			continue;
 		}
 
-		const first = await input.select(rolePromptTitle(step), labeledChoices(input.plan.choices, step.current));
+		const first = await input.select(
+			rolePromptTitle(step),
+			labeledChoices(input.plan.choices, step.current),
+		);
 		if (first === undefined) return undefined;
-		const selected = stripCurrentMark(first);
-		if (isInheritanceSelector(selected) || !isSafeModelSelector(selected)) {
+		const selected = checkedModelSelector(stripCurrentMark(first));
+		if (selected === undefined) {
 			roles = omitRole(roles, step.role);
 			continue;
 		}
 
-		const picked = [selected];
-		const addChoices = ["done", ...input.plan.choices.filter((choice) => choice !== PSTACK_INHERIT_PARENT)];
+		const picked: PstackModelSelector[] = [selected];
+		const addChoices = [
+			"done",
+			...input.plan.choices.filter((choice) => choice !== PSTACK_INHERIT_PARENT),
+		];
 		while (true) {
-			const next = await input.select(`Add another model for ${step.role}? [${step.cardinality}]`, addChoices);
+			const next = await input.select(
+				`Add another model for ${step.role}? [${step.cardinality}]`,
+				addChoices,
+			);
 			if (next === undefined) return undefined;
 			if (next === "done") break;
-			const value = stripCurrentMark(next);
-			if (value === "done" || isInheritanceSelector(value) || !isSafeModelSelector(value)) continue;
-			picked.push(value);
+			const value = checkedModelSelector(stripCurrentMark(next));
+			if (value !== undefined) picked.push(value);
 		}
 		roles = assignRole(roles, step.role, picked);
 	}
