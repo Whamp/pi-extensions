@@ -6,8 +6,19 @@ If you want to go fast, go deep first. pstack helps you write less, but higher q
 
 ## Install
 
+The npm command installs the upstream release:
+
 ```bash
 pi install npm:@zenspc/pi-pstack
+```
+
+To install this fork instead:
+
+```bash
+git clone https://github.com/Whamp/pi-extensions.git ~/projects/pi-extensions
+cd ~/projects/pi-extensions
+pnpm install --frozen-lockfile
+pi install ~/projects/pi-extensions/packages/pi-pstack
 ```
 
 Requires [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) for the `poteto-agent`, `comment-sicko`, and workflow fan-outs (`how`, `why`, `arena`, `swarm`, `interrogate`, `reflect`).
@@ -37,7 +48,7 @@ The other skills are Hidden; the mode skill uses them as needed.
 
 ## Model roles
 
-Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pstack` to write it. The extension injects the role table only when a role has a real model slug. Default inherit-all injects nothing. `inherit-parent` or `auto` runs on the parent session model.
+Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pstack` to write it. The 22 role names and cardinalities are in `skills/setup-pstack/references/MODEL-ROLES.md`. The extension injects the role table only when a role has a real model slug. Default inherit-all injects nothing. `inherit-parent` or `auto` runs on the parent session model.
 
 ## Differences from the Cursor plugin
 
