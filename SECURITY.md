@@ -1,68 +1,44 @@
-# Security Policy
+# Security policy
 
 ## Supported versions
 
-This monorepo is pre-1.0.
+This personal fork supports the current versions on its default branch for:
 
-Security fixes are applied only to the **latest published version** of each package:
-
-- `@zenspc/pi-safety`
-- `@zenspc/pi-workflow`
-- `@zenspc/pi-devtools`
-- `@zenspc/pi-preferred-thinking`
-- `@zenspc/pi-copilot-discovery`
-- `@zenspc/pi-spinner`
+- `@zenspc/pi-pstack`
 - `@zenspc/pi-quiet`
-- `@zenspc/pi-sticky-editor`
 
-Older published versions are not maintained with backports unless a release note says otherwise.
+Older revisions do not receive backports unless a release note says otherwise.
 
-## Reporting a vulnerability
+## Report a vulnerability
 
-Please report security issues **privately**. Do not open a public GitHub issue for vulnerabilities, secrets, or token leaks.
+Report security issues privately. Do not open a public issue for
+vulnerabilities, secrets, or token leaks.
 
-Preferred:
+1. Use
+   [GitHub Private Vulnerability Reporting](https://github.com/Whamp/pi-extensions/security/advisories/new)
+   when it is enabled.
+2. Otherwise contact [@Whamp](https://github.com/Whamp) privately through
+   GitHub.
 
-1. Use [GitHub Private Vulnerability Reporting](https://github.com/zenspc/pi-extensions/security/advisories/new) when it is enabled for this repository.
-2. Otherwise contact the maintainers privately via GitHub: [@dhairyaar](https://github.com/dhairyaar).
+Include the affected package and revision, impact, minimal reproduction steps
+or proof of concept, and whether the issue is already public.
 
-Include:
-
-- Affected package name and version
-- Impact summary
-- Reproduction steps or proof of concept (keep it minimal)
-- Whether the issue is already public
-
-We will acknowledge private reports as soon as practical and coordinate disclosure.
-
-## What is out of scope
-
-Some debug surfaces intentionally expose local session or environment data.
-That is not treated as a vulnerability by itself.
-
-Examples:
-
-- `/context prompt full` and similar context dumps
-- Memory dumps or session inspection output from these extensions
-
-Those features can include local secrets, tokens, or absolute paths from the host machine.
-Treat their output as sensitive.
-Redact before sharing, and do not file public issues that paste unredacted dumps.
-
-Bugs that allow **unintended** secret exfiltration (for example, leaking credentials into logs without the user requesting a dump) are in scope and should be reported privately.
+The maintainer will acknowledge private reports and coordinate disclosure.
 
 ## Bad published versions
 
-If a published package version is broken or unsafe, ship a fixed version immediately.
-Unpublish is limited by npm policy after a short window.
-Deprecate the bad version with `npm deprecate @zenspc/<pkg>@<ver> "reason; use @zenspc/<pkg>@X.Y.Z"`.
-If a tarball leaked tokens or secrets, rotate credentials and report via the private channel above.
+If a published package version is broken or unsafe, publish a fixed version.
+Npm limits unpublishing after a short window. Deprecate the bad version with:
 
-## Non-vulnerabilities
+```bash
+npm deprecate @zenspc/<pkg>@<ver> "reason; use @zenspc/<pkg>@X.Y.Z"
+```
 
-The following are expected product behavior, not security bugs:
+If a package leaked tokens or secrets, rotate the credentials and report the
+leak through the private channel above.
 
-- Intentional local context dumps in `@zenspc/pi-devtools` (`prompt full`, expanded prompt view, `memory <substr>`)
-- User-disabled safety guard (`~/.pi/agent/safety-guard.json` with `"enabled": false`)
-- Upstream Copilot/GitHub outages, rate limits, or policy denials
-- Missing models due to tenant entitlements or account configuration
+## Public reports
+
+Redact tokens, credentials, private paths, and session content before attaching
+logs or output to a public issue. Report unintended disclosure through the
+private channel above.
