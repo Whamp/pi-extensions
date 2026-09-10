@@ -11,11 +11,15 @@
  *   /quiet help
  *
  * Scope: all tools when Pi exposes registerToolRenderer (built-ins + Foreign Tools).
- * Fallback without the hook: built-in read/bash/edit/write/find/grep/ls only.
+ * Fallback without the hook: built-ins not already overridden by another extension.
  * Assistant prose and thinking still split Verb Groups.
  */
 
-import type { ExtensionAPI, ExtensionCommandContext, ExtensionContext } from "@earendil-works/pi-coding-agent";
+import type {
+	ExtensionAPI,
+	ExtensionCommandContext,
+	ExtensionContext,
+} from "@earendil-works/pi-coding-agent";
 import {
 	applyQuietCommand,
 	formatQuietHelp,
@@ -26,10 +30,7 @@ import { CompactionIndex, shouldRetainResult } from "./compaction.ts";
 import { getConfigPath, loadQuietConfig, saveQuietConfig } from "./config.ts";
 import { classifyQuietTool, textLineCount } from "./classify.ts";
 import { messagesFromBranch, rowsFromMessages } from "./history.ts";
-import {
-	resultIsImageFromUnknown,
-	resultTextFromUnknown,
-} from "./result-content.ts";
+import { resultIsImageFromUnknown, resultTextFromUnknown } from "./result-content.ts";
 import { registerQuietToolRendererWrapper, registerQuietTools } from "./tools.ts";
 import { toolParticipatesInQuiet } from "./tools-meta.ts";
 
@@ -46,11 +47,9 @@ export default function quietExtension(pi: ExtensionAPI) {
 	const configPath = getConfigPath();
 	const index = new CompactionIndex();
 
-	// Prefer Tool Renderer Wrapper (all tools + Foreign). Else built-in overrides only.
+	// Prefer Tool Renderer Wrapper (all tools + Foreign).
 	const usingRendererHook = registerQuietToolRendererWrapper(pi, () => enabled, index);
-	if (!usingRendererHook) {
-		registerQuietTools(pi, () => enabled, index);
-	}
+	let fallbackToolsRegistered = false;
 
 	const rebuildFromSession = (ctx: ExtensionContext) => {
 		try {
@@ -64,6 +63,13 @@ export default function quietExtension(pi: ExtensionAPI) {
 
 	pi.on("session_start", async (_event, ctx) => {
 		enabled = loadQuietConfig().enabled;
+		rebuildFromSession(ctx);
+	});
+
+	pi.on("before_agent_start", async (_event, ctx) => {
+		if (usingRendererHook || fallbackToolsRegistered) return;
+		registerQuietTools(pi, () => enabled, index);
+		fallbackToolsRegistered = true;
 		rebuildFromSession(ctx);
 	});
 
@@ -115,9 +121,10 @@ export default function quietExtension(pi: ExtensionAPI) {
 		if (outcome.kind === "pending") return;
 
 		const keepResult = shouldRetainResult(event.toolName, outcome.kind);
-		const resultContent = keepResult && Array.isArray((event.result as { content?: unknown })?.content)
-			? ((event.result as { content: unknown[] }).content)
-			: [];
+		const resultContent =
+			keepResult && Array.isArray((event.result as { content?: unknown })?.content)
+				? (event.result as { content: unknown[] }).content
+				: [];
 
 		index.onEnd({
 			toolCallId: event.toolCallId,
@@ -129,7 +136,7 @@ export default function quietExtension(pi: ExtensionAPI) {
 				? {
 						content: resultContent,
 						details: (event.result as { details?: unknown })?.details,
-				  }
+					}
 				: undefined,
 			isError: event.isError,
 		});
@@ -138,7 +145,7 @@ export default function quietExtension(pi: ExtensionAPI) {
 	pi.registerCommand("quiet", {
 		description: usingRendererHook
 			? "Toggle Quiet Display for tool rows (built-in + Foreign Tools)"
-			: "Toggle Quiet Display for built-in tool rows",
+			: "Toggle Quiet Display for compatible built-in tool rows",
 		handler: async (args, ctx) => {
 			const cmd = parseQuietCommand(args);
 			const result = applyQuietCommand(cmd, enabled);

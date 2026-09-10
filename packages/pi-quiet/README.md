@@ -98,20 +98,27 @@ Missing or invalid file → Quiet Display **on**.
 
 ## Scope
 
-**In (always):** built-in `read`, `bash`, `edit`, `write`, `find`, `grep`, `ls` (specialized Kind Formatters + Verb Groups).
+**In (always):** built-in `read`, `bash`, `edit`, `write`, `find`, `grep`,
+`ls` when they still use Pi's implementation (specialized Kind Formatters + Verb
+Groups).
 
 **In (when Pi has `registerToolRenderer`):** Foreign Tools - extension tools, MCP gateways, SDK custom tools - via the Generic Kind Formatter (`🧩`, Called/Calling, arg peek) and Verb Group Kind Other.
 
 **Out:** assistant prose, thinking, startup header, second density preference, durations on chips, Quiet-native expanded bodies (Stock-on-expand for now).
 
-Without the upstream Tool Renderer Wrapper seam (`registerToolRenderer` on Pi's ExtensionAPI), Foreign Tools stay on Stock Display (built-ins still Quiet).
+Without the upstream Tool Renderer Wrapper seam (`registerToolRenderer` on
+Pi's ExtensionAPI), Foreign Tools and built-ins already overridden by another
+extension stay on Stock Display. Other built-ins remain Quiet.
 
 ## Security notes
 
 - Config is untrusted input: size-capped, regular-file only (no symlinks), atomic `0o600` writes.
 - TUI chrome only. No network. Does not change tool execution semantics - only presentation.
 - Foreign arg peeks skip secret-ish keys (`token`, `password`, `api_key`, …).
-- Overriding built-ins (fallback path without the renderer hook) makes pi show its normal tool-override warning once; that is expected. With the hook, Quiet does not replace tools.
+- Overriding built-ins (fallback path without the renderer hook) makes pi show
+  its normal tool-override warning once; that is expected. Quiet skips built-ins
+  already owned by another extension. With the hook, Quiet does not replace
+  tools.
 
 ## License
 

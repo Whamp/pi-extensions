@@ -3,7 +3,7 @@
  *
  * Two registration paths:
  * - Preferred: Pi registerToolRenderer wrapper for every tool (built-in + Foreign).
- * - Fallback: registerTool overrides for the seven built-ins only (no Foreign Quiet).
+ * - Fallback: registerTool overrides for built-ins not already owned by another extension.
  *
  * Execution always stays on the original tool definition.
  */
@@ -29,11 +29,7 @@ import {
 import { Box, Container, Text, type Component } from "@earendil-works/pi-tui";
 import { homedir } from "node:os";
 import { createQuietBashToolDefinitionFactory } from "./bash-settings.ts";
-import {
-	type QuietOutcome,
-	classifyQuietTool,
-	textLineCount,
-} from "./classify.ts";
+import { type QuietOutcome, classifyQuietTool, textLineCount } from "./classify.ts";
 import type { CompactionIndex } from "./compaction.ts";
 import {
 	displayTargets,
@@ -44,10 +40,7 @@ import {
 	formatSingletonCallLine,
 	groupKindForTool,
 } from "./format.ts";
-import {
-	resultIsImageFromContent,
-	resultTextFromContent,
-} from "./result-content.ts";
+import { resultIsImageFromContent, resultTextFromContent } from "./result-content.ts";
 import {
 	TOOL_SHELL_PADDING,
 	type ToolShellBg,
@@ -60,7 +53,11 @@ import {
 	tryRegisterToolRenderer,
 } from "./tool-renderer-api.ts";
 import type { QuietToolName } from "./tools-meta.ts";
-import { setForeignToolsQuiet } from "./tools-meta.ts";
+import {
+	registerFallbackQuietBuiltinTools,
+	setForeignToolsQuiet,
+	setQuietBuiltinToolNames,
+} from "./tools-meta.ts";
 
 type AnyDef = ToolDefinition<any, any, any>;
 type ThemeColor = "error" | "muted" | "success" | "dim" | "warning" | "toolTitle";
@@ -307,10 +304,7 @@ function buildQuietRenderers(
 			const home = homedir();
 			const argsRec = args as Record<string, unknown>;
 			if (role.role === "carrier" && role.memberIds.length >= 2) {
-				const header = formatGroupHeader(
-					groupKindForTool(toolName),
-					role.memberIds.length,
-				);
+				const header = formatGroupHeader(groupKindForTool(toolName), role.memberIds.length);
 				box.addChild(new Text(theme.fg("toolTitle", theme.bold(header)), 0, 0));
 				return box;
 			}
@@ -506,25 +500,26 @@ function wrapBuiltin(
 	});
 }
 
-/** Built-in registerTool overrides (no Foreign Tool coverage). */
+/** Register fallback render overrides after Pi has initialized its tool inventory. */
 export function registerQuietTools(
 	pi: ExtensionAPI,
 	isEnabled: () => boolean,
 	index: CompactionIndex,
 ): void {
-	wrapBuiltin(pi, isEnabled, index, createReadToolDefinition, "read");
-	wrapBuiltin(
-		pi,
-		isEnabled,
-		index,
-		createQuietBashToolDefinitionFactory(createBashToolDefinition),
-		"bash",
-	);
-	wrapBuiltin(pi, isEnabled, index, createEditToolDefinition, "edit");
-	wrapBuiltin(pi, isEnabled, index, createWriteToolDefinition, "write");
-	wrapBuiltin(pi, isEnabled, index, createGrepToolDefinition, "grep");
-	wrapBuiltin(pi, isEnabled, index, createFindToolDefinition, "find");
-	wrapBuiltin(pi, isEnabled, index, createLsToolDefinition, "ls");
+	const factories = {
+		read: createReadToolDefinition,
+		bash: createQuietBashToolDefinitionFactory(createBashToolDefinition),
+		edit: createEditToolDefinition,
+		write: createWriteToolDefinition,
+		grep: createGrepToolDefinition,
+		find: createFindToolDefinition,
+		ls: createLsToolDefinition,
+	} satisfies Record<QuietToolName, (cwd: string) => AnyDef>;
+
+	const registered = registerFallbackQuietBuiltinTools(pi.getAllTools(), (toolName) => {
+		wrapBuiltin(pi, isEnabled, index, factories[toolName], toolName);
+	});
+	setQuietBuiltinToolNames(registered);
 }
 
 /**
