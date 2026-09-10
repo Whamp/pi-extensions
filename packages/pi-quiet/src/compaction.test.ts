@@ -1,15 +1,11 @@
 import assert from "node:assert/strict";
 import { afterEach, describe, it } from "node:test";
-import {
-	CompactionIndex,
-	type CompactionRow,
-	planCompaction,
-	roleOf,
-} from "./compaction.ts";
-import { setForeignToolsQuiet } from "./tools-meta.ts";
+import { CompactionIndex, type CompactionRow, planCompaction, roleOf } from "./compaction.ts";
+import { QUIET_TOOL_NAMES, setForeignToolsQuiet, setQuietBuiltinToolNames } from "./tools-meta.ts";
 
 afterEach(() => {
 	setForeignToolsQuiet(false);
+	setQuietBuiltinToolNames(QUIET_TOOL_NAMES);
 });
 
 function row(
@@ -287,6 +283,26 @@ describe("planCompaction (Verb Groups)", () => {
 });
 
 describe("CompactionIndex", () => {
+	it("keeps an extension-owned tool out of a fallback Quiet group", () => {
+		setQuietBuiltinToolNames(["find"]);
+		const index = new CompactionIndex();
+		index.onEnd({
+			toolCallId: "find",
+			toolName: "find",
+			outcomeKind: "success",
+			chip: "1 file",
+		});
+		index.onEnd({
+			toolCallId: "grep",
+			toolName: "grep",
+			outcomeKind: "success",
+			chip: "1 match",
+		});
+
+		assert.equal(roleOf(index.getPlan(), "find").role, "singleton");
+		assert.equal(roleOf(index.getPlan(), "grep").role, "singleton");
+	});
+
 	it("getRow returns the same object identity as getRows()", () => {
 		const index = new CompactionIndex();
 		index.onEnd({

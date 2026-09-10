@@ -4,7 +4,10 @@ import {
 	FOREIGN_KIND_EMOJI,
 	foreignToolsQuietEnabled,
 	isQuietToolName,
+	QUIET_TOOL_NAMES,
+	registerFallbackQuietBuiltinTools,
 	setForeignToolsQuiet,
+	setQuietBuiltinToolNames,
 	toolParticipatesInQuiet,
 	verbGroupJoins,
 	verbGroupKind,
@@ -12,10 +15,11 @@ import {
 
 afterEach(() => {
 	setForeignToolsQuiet(false);
+	setQuietBuiltinToolNames(QUIET_TOOL_NAMES);
 });
 
 describe("toolParticipatesInQuiet", () => {
-	it("built-ins always participate", () => {
+	it("built-ins participate by default", () => {
 		assert.equal(toolParticipatesInQuiet("read"), true);
 		assert.equal(isQuietToolName("read"), true);
 		assert.equal(toolParticipatesInQuiet("mcp"), false);
@@ -30,8 +34,43 @@ describe("toolParticipatesInQuiet", () => {
 		assert.equal(toolParticipatesInQuiet(""), false);
 	});
 
+	it("excludes skipped fallback overrides from Quiet compaction", () => {
+		setQuietBuiltinToolNames(["bash", "edit"]);
+		assert.equal(toolParticipatesInQuiet("read"), false);
+		assert.equal(toolParticipatesInQuiet("bash"), true);
+	});
+
 	it("exports the Foreign Kind Emoji", () => {
 		assert.equal(FOREIGN_KIND_EMOJI, "🧩");
+	});
+});
+
+describe("registerFallbackQuietBuiltinTools", () => {
+	it("registers only quiet tools still owned by Pi", () => {
+		const registered: string[] = [];
+		const selected = registerFallbackQuietBuiltinTools(
+			[
+				{ name: "read", sourceInfo: { source: "/extensions/read-long-lines/index.ts" } },
+				{ name: "bash", sourceInfo: { source: "builtin" } },
+				{ name: "edit", sourceInfo: { source: "builtin" } },
+				{ name: "custom", sourceInfo: { source: "/extensions/custom.ts" } },
+			],
+			(name) => registered.push(name),
+		);
+
+		assert.deepEqual(selected, ["bash", "edit"]);
+		assert.deepEqual(registered, selected);
+	});
+
+	it("keeps every quiet tool when Pi still owns each implementation", () => {
+		const registered: string[] = [];
+		const selected = registerFallbackQuietBuiltinTools(
+			QUIET_TOOL_NAMES.map((name) => ({ name, sourceInfo: { source: "builtin" } })),
+			(name) => registered.push(name),
+		);
+
+		assert.deepEqual(selected, QUIET_TOOL_NAMES);
+		assert.deepEqual(registered, selected);
 	});
 });
 
