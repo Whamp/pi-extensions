@@ -27,9 +27,9 @@ Open a todolist with one entry per phase before launching anything.
 
 ## Phase B: Fan out
 
-Spawn all N workers in one message with `agent: "worker", `environment: "cloud"`, `run_in_background: true`, and the configured model. Use `environment: "local"` only when the worker needs access to something on the user's computer.
+Launch all N workers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "worker-<slice>", agent: "worker", task, model }])`. Give each worker a stable key and the configured model. Omit `model` when the role inherits the parent.
 
-When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.
+Use `cwd` or `baseRef` under `input` when the work needs a specific local checkout or Git ref.
 
 Every brief stands alone. Include the goal, scope, exact slice or race arm, how to verify, and what to report. Reports use `PASS`, `ISSUES`, or `BLOCKED` with evidence.
 

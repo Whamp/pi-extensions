@@ -116,12 +116,22 @@ export const SEAMS = [
 	{
 		id: "subagent-poteto",
 		cursor: /subagent_type:\s*"poteto-agent"/g,
-		pi: 'subagent({ agent: "poteto-agent", task })',
+		pi: 'subagent({ action: "execute", input: { agent: "poteto-agent", task } })',
 	},
 	{
 		id: "subagent-sicko",
 		cursor: /subagent_type:\s*"Comment Sicko"/g,
-		pi: 'subagent({ agent: "comment-sicko", task })',
+		pi: 'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
+	},
+	{
+		id: "flat-subagent-poteto",
+		cursor: /subagent\(\{\s*agent:\s*"poteto-agent",\s*task\s*\}\)/g,
+		pi: 'subagent({ action: "execute", input: { agent: "poteto-agent", task } })',
+	},
+	{
+		id: "flat-subagent-sicko",
+		cursor: /subagent\(\{\s*agent:\s*"comment-sicko",\s*task\s*\}\)/g,
+		pi: 'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
 	},
 	{
 		id: "subagent-worker",
@@ -142,32 +152,72 @@ export const SEAMS = [
 	{
 		id: "task-subagent",
 		cursor: /Task subagent/g,
-		pi: "subagent",
+		pi: "child",
 	},
 	{
 		id: "task-call",
 		cursor: /every `Task` call/g,
-		pi: "every `subagent()` launch",
+		pi: "every child launch",
 	},
 	{
 		id: "task-calls",
 		cursor: /`Task` calls/g,
-		pi: "`subagent()` launches",
+		pi: "child launches",
 	},
 	{
 		id: "task-call-one",
 		cursor: /One `Task` call/g,
-		pi: "One `subagent()` launch",
+		pi: "One child launch",
 	},
 	{
 		id: "three-task",
 		cursor: /three `Task` calls/g,
-		pi: "three `subagent()` launches",
+		pi: "three child launches",
+	},
+	{
+		id: "task-tool",
+		cursor: /(?:the )?Task tool/g,
+		pi: "the subagent catalog",
+	},
+	{
+		id: "task-response",
+		cursor: /`Task` response body/g,
+		pi: "workflow result",
+	},
+	{
+		id: "task-schema",
+		cursor: /Task schema/g,
+		pi: "subagent catalog schema",
+	},
+	{
+		id: "background-field",
+		cursor: /run_in_background/g,
+		pi: "async",
+	},
+	{
+		id: "cloud-base-branch",
+		cursor: /cloud_base_branch/g,
+		pi: "baseRef",
+	},
+	{
+		id: "cloud-environment",
+		cursor: /`environment: "cloud"`/g,
+		pi: "`async: true`",
+	},
+	{
+		id: "local-environment",
+		cursor: /`environment: "local"`/g,
+		pi: "`cwd` for the required local checkout",
 	},
 	{
 		id: "readonly-true",
 		cursor: /`readonly`: `true`/g,
-		pi: "tools: read-only (`read, grep, find, ls, bash`)",
+		pi: '`task`: instruct the child to inspect only and not modify files',
+	},
+	{
+		id: "readonly-false",
+		cursor: /`readonly`: `false`/g,
+		pi: '`task`: state whether the child may modify files',
 	},
 	{
 		id: "create-skill-builtin",
@@ -460,7 +510,7 @@ const POTETO_INTRO = [
 ].join("\n");
 
 const SUBAGENT_DEFAULTS =
-	"**Defaults for every `subagent()` launch.** `run_in_background: true`, agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`). Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit `model`).";
+	"**Defaults for every child launch.** Put every operation field under `input`. Set `input.async: true` for background work. Pass file pointers instead of inlining context. Multiple children or dependent stages use one `subagent({ action: \"execute\", input: { workflowScript, ... } })` call with stable-keyed `runs.run` and `runs.all` steps. Count later synthesis and review children in `input.maxSubagentSpawnsPerRun` when the workflow sets it. A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools. Select an explicit model per role when `/setup-pstack` configures one. Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default. A role line of `inherit-parent` or `auto` runs that role on the parent chat model, so omit `model`.";
 
 function patchPotetoModePi(text) {
 	if (!text.includes("`/poteto-mode` enables this mode")) {
@@ -468,7 +518,7 @@ function patchPotetoModePi(text) {
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
 	text = text.replace(
-		/\*\*Defaults for every `subagent\(\)` launch\.\*\*[^\n]*/,
+		/\*\*Defaults for every (?:`subagent\(\)`|child) launch\.\*\*[^\n]*/,
 		SUBAGENT_DEFAULTS,
 	);
 	return text;
@@ -632,13 +682,212 @@ export function applyAtomicRoleTransforms(text, rel) {
 	return text;
 }
 
+const PI_CALLER_GUIDANCE_REPLACEMENTS = [
+	{
+		rel: "skills/no-comments/SKILL.md",
+		pattern: /^1\. Spawn .*comment-sicko.*$/m,
+		replacement:
+			'1. Spawn Comment Sicko with `subagent({ action: "execute", input: { agent: "comment-sicko", task, async: false } })`. Put the scope in `task`. Do not restate its rules.',
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		pattern: /^Decompose the question into 2 to 4 exploration angles,[\s\S]*?Then go to Step 3\.$/m,
+		replacement:
+			'Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "worker", task, model }])`, then return `runs.run("explain", { agent: "worker", task, model })` with the explorer outputs.\n\nEach explorer uses:\n- agent: "worker"\n- `model`: `how explorers` (default inherit-parent)\n- `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only\n\nThen go to Step 3.',
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		pattern: /^Spawn one (?:subagent|child) that explores and explains[\s\S]*?Go to Step 4\.$/m,
+		replacement:
+			'Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only\n\nGo to Step 4.',
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		pattern: /^Once all explorers have returned,[\s\S]*?with every explorer's findings filled in\.$/m,
+		replacement:
+			'The same workflow launches `explain` after every explorer settles using:\n- agent: "worker"\n- `model`: `how synthesizer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only',
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		pattern: /^3\. Explore in subagents .*$/m,
+		replacement:
+			'3. Explore in subagents with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call and an explicit model per child from the Subagents section (the **guard-the-context-window** principle skill). In `workflowScript`, launch the explorers with `return await runs.all([{ key: "explore-<slice>", agent: "poteto-agent", task, model }])`. Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.',
+	},
+	{
+		rel: "skills/arena/SKILL.md",
+		pattern: /^Spawn all N subagents .*$/m,
+		replacement:
+			'Launch the candidates and later judge with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "candidate-1", agent: "worker", task, model }])`, then return the dependent judge with `runs.run("cross-judge", { agent: "worker", task, model })`. Give each candidate the shared grounding path, its own output path, and instructions to produce the artifact and a short rationale.',
+	},
+	{
+		rel: "skills/arena/SKILL.md",
+		pattern: /^After all Phase B candidates complete, choose one model .*$/m,
+		replacement:
+			"Before launching the Phase B workflow, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. The workflow's `cross-judge` child starts only after the candidates settle. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. The parent reads completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		pattern: /^Spawn all N workers .*$/m,
+		replacement:
+			'Launch all N workers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "worker-<slice>", agent: "worker", task, model }])`. Give each worker a stable key and the configured model. Omit `model` when the role inherits the parent.',
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		pattern: /^When a worker must start from a non-default pushed branch, pass `baseRef`\.$/m,
+		replacement: "Use `cwd` or `baseRef` under `input` when the work needs a specific local checkout or Git ref.",
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		pattern: /^One message, three .*launches.*$/m,
+		replacement:
+			'The parent resolves transcript references with its own MCP and extension tools before launch. Put the transcript path and that evidence in one bounded digest. Children do not inherit those tools.\n\nLaunch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.',
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		pattern: /^One .*launch, .*reflect synthesizer.*$/m,
+		replacement:
+			'The same workflow returns `runs.run("synthesize-reviews", { agent: "worker", task, model })` after every reviewer settles. Run it using `reflect synthesizer` (default inherit-parent). After completion, the parent spot-verifies citations with its own MCP and extension tools.',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^Before spawning investigators, list the available MCPs .*$/m,
+		replacement:
+			"Before spawning investigators, the parent lists its available MCP and extension tools.",
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^Aim for a complete \*\*coverage map\*\*.*$/m,
+		replacement:
+			"Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. Children do not inherit ambient MCP or extension tools.",
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^Launch all matching investigators .*$/m,
+		replacement:
+			'Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "investigate-<category>", agent: "worker", task, model }])`, then return `runs.run("synthesize-why", { agent: "worker", task, model })` with their outputs.',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^- `task`: state whether the child may modify files.*$/m,
+		replacement: '- `task`: instruct the investigator to inspect only and include the parent\'s evidence packet',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^Each investigator gets:[\s\S]*?(?=^### Investigator roster)/m,
+		replacement:
+			"Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` as an analysis rubric for the parent's evidence packet, not as child tool instructions\n3. The parent's evidence packet for that category, including null results and gaps\n4. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)\n5. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n6. The user's original question\n\n",
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^Spawn one investigator per category .*$/m,
+		replacement: "Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns exactly one evidence packet.",
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern:
+			/^Spawn one synthesizer subagent:\n\n- agent: "worker"\n- `model`: `why synthesizer`[^\n]*\n- `task`: state whether the child may modify files[^\n]*/m,
+		replacement:
+			'The same workflow returns `runs.run("synthesize-why", { agent: "worker", task, model })` after every investigator settles. It uses:\n- agent: "worker"\n- `model`: `why synthesizer` (default inherit-parent)\n\nThe parent spot-verifies citations with its own MCP and extension tools after completion.',
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		pattern: /^Launch all reviewers in a single message .*$/m,
+		replacement:
+			'Launch all reviewers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "reviewer-a", agent: "worker", task, model }])` with one stable-keyed item per reviewer. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.',
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		pattern: /^- tools: read-only .*$/m,
+		replacement: "- `task`: instruct the reviewer to inspect only and not modify files",
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		pattern: /^If a model slug is rejected as unresolvable .*$/m,
+		replacement:
+			"If an explicit model selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model from the same family, and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. If the configured value is `inherit-parent` or `auto`, omit `model`; those values are not broken selectors.",
+	},
+	{
+		rel: "skills/poteto-mode/SKILL.md",
+		pattern: /^\*\*Use `subagent\(\{ action: "execute".*$/m,
+		replacement:
+			'**Use `subagent({ action: "execute", input: { agent: "poteto-agent", task } })` for one standalone child inside a playbook step.** Put every operation field under `input`. `/poteto-mode` and `poteto-agent` route through the same wrapper. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own agent for diverse-model review. Respect what the skill prescribes. Do not override it with `poteto-agent`.',
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /Agents are spawned, resumed, and drained only through the subagent catalog\./,
+		replacement:
+			'Launch one child with `subagent({ action: "execute", input: { agent, task, async: true } })`. Launch each parallel or dependent wave with one execute call whose `input.workflowScript` uses stable-keyed `runs.run` and `runs.all` steps.',
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: / \(nesting works to depth 3, and a nested spawn has the full subagent catalog schema including `(?:async: true|environment)`\)/,
+		replacement:
+			'. Nesting works to depth 3. A custom sub-coordinator agent lists `subagent` in its tool allowlist and loads extension-tool providers through `extensions` or `subagentOnlyExtensions`',
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern:
+			/Always `async: true` unless the task needs this machine:[^\n]*Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths\./,
+		replacement:
+			"Set `input.async: true` for background work. Set `input.cwd` when the task needs a specific checkout or machine-local resource. Briefs inline what an external provider needs or point at repository paths it can read.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /^Size the brief to the unit\..*$/m,
+		replacement:
+			"Size the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Children with access to the store may reference the standing-orders file by path. Paste it verbatim for external-provider launches and every resume.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /^A sub-coordinator brief adds .*$/m,
+		replacement:
+			"A sub-coordinator brief adds its track boundary and unit list, its spawn budget with the async default and blocking exceptions, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /^- Exactly one stacker per stack may run `gt`.*$/m,
+		replacement:
+			"- Exactly one stacker per stack may run `gt`, serialized within its stack. Record the holder in the standing orders. Run restacks as async children. A blocking restack at this scale takes the laptop down.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /^- Never resume an agent to check on it\..*$/m,
+		replacement:
+			'- Never resume an agent to check on it. A resume restarts an idle agent. Probe without mutation through the ledger, `units.tsv`, `gh`, pushed branches, and `subagent({ action: "status", input: { id } })`. Transcript mtime is not liveness.',
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /^- After a Cursor restart:.*$/m,
+		replacement:
+			"- After a Pi restart, re-read the standing orders and `units.tsv`, query retained async runs, recompute the frontier, reattach work by PR and branch rather than agent id, respawn one sub-coordinator per track from its stored brief plus current state, drain, and resume. The dead session's store lock clears itself on the next write. `orch` replaces a lock whose holder pid is gone.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		pattern: /(4\. \*\*Scale\.\*\* Spawn a rolling window of workers up to the in-flight cap, refilling as children finish\.)/,
+		replacement:
+			'$1 Launch each refill with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + V, workflowScript } })` call. Use `return await runs.all([{ key: "<unit-id>", agent, task, model }])` for a ready-only wave. For a predeclared dependent verifier, await that `runs.all` result and then return `runs.run("<unit-id>-verify", { ... })` in the same script. `N` is the ready worker count and `V` is the number of later verifiers.',
+	},
+];
+
+/** Rewrite executable caller guidance to the stateless catalog and keyed workflow DSL. */
+export function applyPiCallerGuidanceTransforms(text, rel) {
+	for (const replacement of PI_CALLER_GUIDANCE_REPLACEMENTS) {
+		if (replacement.rel === rel) {
+			text = text.replace(replacement.pattern, replacement.replacement);
+		}
+	}
+	return text;
+}
+
 export function applyBodyTransforms(text, rel) {
 	for (let i = 0; i < 20; i++) {
 		let next = text;
 		for (const seam of SEAMS) {
 			next = next.replace(seam.cursor, seam.pi);
 		}
-		if (next === text) return applyAtomicRoleTransforms(next, rel);
+		if (next === text) {
+			return applyPiCallerGuidanceTransforms(applyAtomicRoleTransforms(next, rel), rel);
+		}
 		text = next;
 	}
 	throw new Error("seam fixpoint did not converge");
@@ -733,6 +982,83 @@ export function apply(planned) {
 	}
 }
 
+const LEGACY_PI_CALLER_GUIDANCE_RULES = [
+	{
+		id: "legacy-flat-subagent-call",
+		pattern: /subagent\(\s*\{(?!\s*action\s*:)/,
+	},
+	{
+		id: "cursor-run-in-background-field",
+		pattern: /\brun_in_background\s*:/,
+	},
+	{
+		id: "cursor-environment-field",
+		pattern: /\benvironment`?\s*:/,
+	},
+	{
+		id: "cursor-environment-schema",
+		pattern: /catalog schema including `environment`/,
+	},
+	{
+		id: "cursor-runtime-guidance",
+		pattern: /\bCursor (?:dashboard|restart)\b/,
+	},
+	{
+		id: "cursor-readonly-field",
+		pattern: /\breadonly`?\s*:/,
+	},
+	{
+		id: "cursor-cloud-base-branch-field",
+		pattern: /\bcloud_base_branch\b/,
+	},
+	{
+		id: "object-form-runs-run",
+		pattern: /\bruns\.run\(\s*\{/,
+	},
+	{
+		id: "unawaited-runs-all-guidance",
+		pattern: /\b(?:In `workflowScript`, (?:use|launch)[^`\n]*|Inside the script, use|Use) `runs\.all\(\[/,
+	},
+	{
+		id: "task-tool-launch-language",
+		pattern:
+			/\b(?:[Ll]aunch|[Ss]pawn|[Rr]esume|[Dd]rain|[Ee]xecute|[Rr]un)(?:ed|ing|es|s)?\b[^\n]{0,80}\bTask(?: tool)?\b|\b(?:using|through|via)\s+(?:the\s+)?Task tool\b|\bTask (?:response body|schema)\b/,
+	},
+];
+
+function isExecutablePiGuidance(rel) {
+	return (
+		rel === "README.md" ||
+		/^skills\/[^/]+\/SKILL\.md$/.test(rel) ||
+		/^skills\/poteto-mode\/playbooks\/[^/]+\.md$/.test(rel)
+	);
+}
+
+const HISTORICAL_GUIDANCE_LINE = /\b(?:deprecated|historical|legacy|previously|removed)\b/i;
+
+/** Reject stale executable Pi caller examples without scanning historical or third-party reference prose. */
+export function assertNoLegacyPiCallerGuidance(destRoot) {
+	const rels = walkFiles(destRoot).filter(isExecutablePiGuidance);
+	const findings = [];
+	for (const rel of rels) {
+		const text = readFileSync(join(destRoot, rel), "utf8");
+		for (const rule of LEGACY_PI_CALLER_GUIDANCE_RULES) {
+			const pattern = new RegExp(rule.pattern.source, `${rule.pattern.flags}g`);
+			for (const match of text.matchAll(pattern)) {
+				const lineStart = text.lastIndexOf("\n", match.index) + 1;
+				const lineEnd = text.indexOf("\n", match.index);
+				const lineText = text.slice(lineStart, lineEnd === -1 ? text.length : lineEnd);
+				if (HISTORICAL_GUIDANCE_LINE.test(lineText)) continue;
+				const line = text.slice(0, match.index).split("\n").length;
+				findings.push(`${rel}:${line}: ${rule.id}`);
+			}
+		}
+	}
+	if (findings.length > 0) {
+		throw new Error(`legacy Pi caller guidance remains:\n${findings.join("\n")}`);
+	}
+}
+
 export function assertNoCursorSeams(destRoot) {
 	const skillsRoot = join(destRoot, "skills");
 	const rels = walkFiles(skillsRoot).map((rel) => asRelPath(`skills/${rel}`));
@@ -780,6 +1106,7 @@ export function main(argv = process.argv.slice(2)) {
 	}
 	apply(planned);
 	assertNoCursorSeams(args.to);
+	assertNoLegacyPiCallerGuidance(args.to);
 }
 
 const isMain = process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]);

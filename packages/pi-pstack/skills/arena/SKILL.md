@@ -30,15 +30,15 @@ The N candidates will receive the same prompt, so the prompt is the contract.
 
 ## Phase B: Fan out
 
-Spawn all N subagents in one message with `run_in_background: true`, each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.
+Launch the candidates and later judge with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "candidate-1", agent: "worker", task, model }])`, then return the dependent judge with `runs.run("cross-judge", { agent: "worker", task, model })`. Give each candidate the shared grounding path, its own output path, and instructions to produce the artifact and a short rationale.
 
 Each rationale names the alternatives the candidate considered and what it rejected.
 
-If a candidate fails to produce output, proceed with N-1 and note the dropout in the synthesis record.
+If a candidate fails to produce output, pass the completed N-1 results to the judge and note the dropout in the synthesis record.
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates complete, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.
+Before launching the Phase B workflow, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. The workflow's `cross-judge` child starts only after the candidates settle. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. The parent reads completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.
 
 ## Phase D: Pick a base
 

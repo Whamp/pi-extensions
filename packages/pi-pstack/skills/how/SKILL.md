@@ -18,33 +18,30 @@ When in doubt, take the simple path.
 
 ## Step 2a. Explore (complex questions only)
 
-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:
+Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "worker", task, model }])`, then return `runs.run("explain", { agent: "worker", task, model })` with the explorer outputs.
 
+Each explorer uses:
 - agent: "worker"
 - `model`: `how explorers` (default inherit-parent)
-- tools: read-only (`read, grep, find, ls, bash`)
+- `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only
 
-Each explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.
+Then go to Step 3.
 
 ## Step 2b. Direct Explain (simple questions)
 
-Spawn one subagent that explores and explains in one pass:
-
+Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:
 - agent: "worker"
 - `model`: `how explainer` (default inherit-parent)
-- tools: read-only (`read, grep, find, ls, bash`)
+- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only
 
-Build its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.
+Go to Step 4.
 
 ## Step 3. Synthesize (complex questions only)
 
-Once all explorers have returned, spawn one subagent to synthesize their findings into one explanation:
-
+The same workflow launches `explain` after every explorer settles using:
 - agent: "worker"
 - `model`: `how synthesizer` (default inherit-parent)
-- tools: read-only (`read, grep, find, ls, bash`)
-
-Build its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.
+- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only
 
 ## Step 4. Present
 
