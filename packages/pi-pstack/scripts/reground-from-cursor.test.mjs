@@ -286,6 +286,11 @@ test("generated Orchestrate workflow refills on completion and hands off matchin
 		/runs\.all/,
 		"Scale example must not use a runs.all barrier",
 	);
+	assert.match(
+		workflowSource,
+		/unit-d.*verifier/,
+		"the failed-worker fixture must declare a verifier that can be skipped",
+	);
 	const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
 	const workflow = new AsyncFunction("runs", workflowSource);
 	const calls = [];
@@ -415,6 +420,7 @@ test("generated Orchestrate workflow refills on completion and hands off matchin
 			unit: "unit-b",
 			stage: "verifier",
 			state: "settled",
+			ok: true,
 			runId: "run-b-verify",
 			output: "verdict: blocked",
 		},

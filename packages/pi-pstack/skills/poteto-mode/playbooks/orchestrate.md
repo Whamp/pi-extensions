@@ -72,7 +72,7 @@ const UNITS = [
   { key: "unit-a", worker: { agent: "worker", model: "worker-model", task: "Work on unit A" } },
   { key: "unit-b", worker: { agent: "worker", model: "worker-model", task: "Work on unit B" }, verifier: { agent: "reviewer", model: "reviewer-model" } },
   { key: "unit-c", worker: { agent: "worker", model: "worker-model", task: "Work on unit C" } },
-  { key: "unit-d", worker: { agent: "worker", model: "worker-model", task: "Work on unit D" } },
+  { key: "unit-d", worker: { agent: "worker", model: "worker-model", task: "Work on unit D" }, verifier: { agent: "reviewer", model: "reviewer-model" } },
   { key: "unit-e", worker: { agent: "worker", model: "worker-model", task: "Work on unit E" } },
 ];
 let nextUnit = 0;
@@ -121,6 +121,8 @@ function evidenceRow(done) {
     unit: done.unit.key,
     stage: done.kind,
     state: "settled",
+    ok: result.ok === true,
+    ...(result.stopped === true ? { stopped: true } : {}),
     ...(result.runId !== undefined ? { runId: result.runId } : {}),
     output: result.output,
   };
