@@ -243,11 +243,12 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/no-comments/SKILL.md",
-		cursor: 'subagent({ agent: "comment-sicko", task })',
+		cursor:
+			'1. Spawn `Task` with subagent_type: "Comment Sicko". Pass the scope. Do not restate its rules.',
 		requiredPi: [
-			'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
+			'subagent({ action: "execute", input: { agent: "comment-sicko", task, async: false } })',
 		],
-		forbiddenCursor: ['subagent({ agent: "comment-sicko", task })'],
+		forbiddenCursor: ["subagent_type", "`Task`"],
 	},
 	{
 		rel: "skills/how/SKILL.md",
@@ -305,9 +306,15 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
-		cursor: "If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent, and retry.",
-		requiredPi: ['action: "models"', "Explicit selectors do not fall back"],
-		forbiddenCursor: ["Task tool's error message"],
+		cursor:
+			"If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, omit `model` instead. Never treat those aliases as broken slugs or enter this fallback for them.",
+		requiredPi: [
+			'action: "models"',
+			"prefer the highest-reasoning tier of the same family",
+			"Do not block the review on a stale selector",
+			"never treat those aliases as broken selectors or enter this fallback for them",
+		],
+		forbiddenCursor: ["Task tool's error message", "slug issue", "broken slugs"],
 	},
 	{
 		rel: "skills/poteto-mode/SKILL.md",

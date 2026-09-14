@@ -47,7 +47,7 @@ For each reviewer:
 - `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
 - `task`: instruct the reviewer to inspect only and not modify files
 
-If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model from the same family, and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. If the configured value is `inherit-parent` or `auto`, omit `model`; those values are not broken selectors.
+If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

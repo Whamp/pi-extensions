@@ -124,16 +124,6 @@ export const SEAMS = [
 		pi: 'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
 	},
 	{
-		id: "flat-subagent-poteto",
-		cursor: /subagent\(\{\s*agent:\s*"poteto-agent",\s*task\s*\}\)/g,
-		pi: 'subagent({ action: "execute", input: { agent: "poteto-agent", task } })',
-	},
-	{
-		id: "flat-subagent-sicko",
-		cursor: /subagent\(\{\s*agent:\s*"comment-sicko",\s*task\s*\}\)/g,
-		pi: 'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
-	},
-	{
 		id: "subagent-worker",
 		cursor:
 			/`subagent_type`:\s*`generalPurpose`|subagent_type:\s*"generalPurpose"|subagent_type:\s*`?generalPurpose`?/g,
@@ -523,10 +513,6 @@ function patchPotetoModePi(text) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
-	text = text.replace(
-		/\*\*Defaults for every (?:`subagent\(\)`|child) launch\.\*\*[^\n]*/,
-		SUBAGENT_DEFAULTS,
-	);
 	text = text.replace(`${POTETO_REPLY_EVIDENCE_BULLET}\n`, "");
 	return text;
 }
@@ -704,7 +690,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/how/SKILL.md",
-		pattern: /^Spawn one (?:subagent|child) that explores and explains[\s\S]*?Go to Step 4\.$/m,
+		pattern: /^Spawn one child that explores and explains[\s\S]*?Go to Step 4\.$/m,
 		replacement:
 			'Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only\n\nGo to Step 4.',
 	},
@@ -828,14 +814,14 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
-		pattern: /^- (?:tools: read-only .*|`task`: instruct the child to inspect only and not modify files)$/m,
+		pattern: /^- tools: read-only .*$/m,
 		replacement: "- `task`: instruct the reviewer to inspect only and not modify files",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
 		pattern: /^If a model slug is rejected as unresolvable .*$/m,
 		replacement:
-			"If an explicit model selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model from the same family, and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. If the configured value is `inherit-parent` or `auto`, omit `model`; those values are not broken selectors.",
+			"If an explicit model selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.",
 	},
 	{
 		rel: "skills/poteto-mode/SKILL.md",
@@ -856,7 +842,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern: / \(nesting works to depth 3, and a nested spawn has the full subagent catalog schema including `(?:async: true|environment)`\)/,
+		pattern: / \(nesting works to depth 3, and a nested spawn has the full subagent catalog schema including `environment`\)/,
 		replacement:
 			'. Nesting works to depth 3. A custom sub-coordinator agent must list `subagent` in its tool allowlist. It must also list each extension tool and load its provider through `extensions` or `subagentOnlyExtensions`',
 	},
@@ -938,11 +924,11 @@ export function renderWrite(action, paths) {
 	if (base === "SKILL.md") {
 		text = applyFrontmatterPolicy(text, skillDir);
 	}
-	if (action.class === "adapt") {
-		text = applyBodyTransforms(text, action.rel);
-	}
 	if (action.rel === "skills/poteto-mode/SKILL.md") {
 		text = patchPotetoModePi(text);
+	}
+	if (action.class === "adapt") {
+		text = applyBodyTransforms(text, action.rel);
 	}
 	return text;
 }
