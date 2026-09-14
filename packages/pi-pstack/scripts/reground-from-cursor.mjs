@@ -733,7 +733,8 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	{
 		rel: "skills/swarm/SKILL.md",
 		pattern: /^When a worker must start from a non-default pushed branch, pass `baseRef`\.$/m,
-		replacement: "Use `cwd` or `baseRef` under `input` when the work needs a specific local checkout or Git ref.",
+		replacement:
+			"Set `input.cwd` to an existing checkout. To create a managed checkout from a Git ref, set `input.worktree: true` and `input.baseRef`.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
@@ -779,11 +780,6 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/why/SKILL.md",
-		pattern: /^- `task`: state whether the child may modify files.*$/m,
-		replacement: "- `task`: instruct the investigator to inspect only",
-	},
-	{
-		rel: "skills/why/SKILL.md",
 		pattern: /^Each investigator gets:[\s\S]*?(?=^### Investigator roster)/m,
 		replacement:
 			"Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` as an analysis rubric for the parent's evidence packet, not as child tool instructions\n3. The parent's evidence packet for that category, including null results and gaps\n4. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)\n5. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n6. The user's original question\n\n",
@@ -802,6 +798,11 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/why/SKILL.md",
+		pattern: /^- `task`: state whether the child may modify files.*$/m,
+		replacement: "- `task`: instruct the investigator to inspect only",
+	},
+	{
+		rel: "skills/why/SKILL.md",
 		pattern: /^5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$/m,
 		replacement:
 			"5. The synthesizer prompt template from `references/synthesizer-prompt.md`\n\nAfter the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.",
@@ -811,11 +812,6 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern: /^Launch all reviewers in a single message .*$/m,
 		replacement:
 			'Launch all reviewers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "reviewer-a", agent: "worker", task, model }])` with one stable-keyed item per reviewer. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.',
-	},
-	{
-		rel: "skills/interrogate/SKILL.md",
-		pattern: /^- tools: read-only .*$/m,
-		replacement: "- `task`: instruct the reviewer to inspect only and not modify files",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -891,6 +887,14 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 ];
 
+function applyInterrogateReviewerTaskTransform(text, rel) {
+	if (rel !== "skills/interrogate/SKILL.md") return text;
+	return text.replace(
+		/^- (?:`readonly`: `true`.*|tools: read-only .*)$/m,
+		"- `task`: instruct the reviewer to inspect only and not modify files",
+	);
+}
+
 /** Rewrite executable caller guidance to the stateless catalog and keyed workflow DSL. */
 export function applyPiCallerGuidanceTransforms(text, rel) {
 	for (const replacement of PI_CALLER_GUIDANCE_REPLACEMENTS) {
@@ -902,6 +906,7 @@ export function applyPiCallerGuidanceTransforms(text, rel) {
 }
 
 export function applyBodyTransforms(text, rel) {
+	text = applyInterrogateReviewerTaskTransform(text, rel);
 	for (let i = 0; i < 20; i++) {
 		let next = text;
 		for (const seam of SEAMS) {
