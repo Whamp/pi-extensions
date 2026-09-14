@@ -45,6 +45,7 @@ function loadExtension() {
 		{ handler: (args: string, ctx: ExtensionCommandContext) => Promise<void> }
 	>();
 	const events = new Map<string, (event: unknown, ctx: unknown) => unknown>();
+	const tools = new Map<string, { name: string }>();
 	const pi = {
 		on(event: string, handler: (event: unknown, ctx: unknown) => unknown) {
 			events.set(event, handler);
@@ -55,11 +56,14 @@ function loadExtension() {
 		) {
 			commands.set(name, options);
 		},
+		registerTool(tool: { name: string }) {
+			tools.set(tool.name, tool);
+		},
 		appendEntry() {},
 		sendUserMessage() {},
 	};
 	pstackExtension(pi as unknown as ExtensionAPI);
-	return { commands, events };
+	return { commands, events, tools };
 }
 
 function makeCtx(options?: {
@@ -108,6 +112,11 @@ function makeCtx(options?: {
 }
 
 describe("pstack extension v2 runtime", () => {
+	it("registers ask_user_question on the host extension API", () => {
+		const { tools } = loadExtension();
+		assert.equal(tools.has("ask_user_question"), true);
+	});
+
 	it("injects atomic role lines with cardinality and never puts diagnostics in the prompt", async () => {
 		await withAgentDir(async ({ jsonPath }) => {
 			writeJson(jsonPath, {

@@ -28,6 +28,7 @@ import {
 	pstackModelSelectorsFromSession,
 	type PstackScopedModelEntry,
 } from "./pstack-setup-plan.ts";
+import { registerAskUserQuestion } from "./ask-user-question.ts";
 import { stripSkillsByLocationPrefix } from "./skill-strip.ts";
 
 export { systemPromptInjection };
@@ -160,6 +161,8 @@ async function persistSetupConfig(input: {
 
 /** Register pstack commands, prompt injection, and session status with Pi. */
 export default function pstackExtension(pi: ExtensionAPI): void {
+	registerAskUserQuestion(pi);
+
 	let potetoMode = false;
 
 	function setStatus(ctx: ExtensionContext): void {
