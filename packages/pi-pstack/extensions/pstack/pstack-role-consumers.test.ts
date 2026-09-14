@@ -300,7 +300,6 @@ const LEGACY_NAME_ALLOWLIST = new Set([
 	"extensions/pstack/pstack-extension.test.ts",
 	"extensions/pstack/pstack-config-status.test.ts",
 	"skills/setup-pstack/SKILL.md",
-	"scripts/reground-caller-guidance.mjs",
 	"scripts/reground-from-cursor.mjs",
 	"scripts/reground-from-cursor.test.mjs",
 ]);
