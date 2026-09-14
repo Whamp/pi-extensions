@@ -110,6 +110,12 @@ function extractPotetoDefaultsSection(text) {
 	return text.slice(start, end);
 }
 
+function extractWorkflowExample(text) {
+	const match = text.match(/```js\n([\s\S]*?)\n```/);
+	assert.ok(match, "missing generated workflowScript example");
+	return match[1];
+}
+
 test("asRelPath rejects traversal and absolute paths", () => {
 	assert.throws(() => asRelPath(".."));
 	assert.throws(() => asRelPath("foo/../bar"));
@@ -248,6 +254,173 @@ test("shipped Pi caller guidance is not remapped as Cursor source", () => {
 	);
 });
 
+test("generated Orchestrate workflow refills on completion and hands off matching evidence", async () => {
+	const generated = renderWrite(
+		{ rel: "skills/poteto-mode/playbooks/orchestrate.md", class: "adapt" },
+		{ from: pinnedCallerGuidanceRoot },
+	);
+	assert.match(
+		generated,
+		/Promise\.race/,
+		"Scale guidance must refill from the next completed child",
+	);
+	assert.match(
+		generated,
+		/globalConcurrencyLimit: C/,
+		"Scale guidance must declare the total concurrency backstop",
+	);
+	assert.match(
+		generated,
+		/maxSubagentSpawnsPerRun: N \+ V/,
+		"Scale guidance must declare cumulative admission",
+	);
+	assert.match(
+		generated,
+		/counts workers and verifiers together/,
+		"Scale guidance must define the shared cap",
+	);
+
+	const workflowSource = extractWorkflowExample(generated);
+	assert.doesNotMatch(
+		workflowSource,
+		/runs\.all/,
+		"Scale example must not use a runs.all barrier",
+	);
+	const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+	const workflow = new AsyncFunction("runs", workflowSource);
+	const calls = [];
+	const settled = [];
+	const pendingRuns = new Map();
+	let active = 0;
+	let maxActive = 0;
+
+	function settleRun(key, method, value) {
+		const deferred = pendingRuns.get(key);
+		assert.ok(deferred, `unknown fake child ${key}`);
+		pendingRuns.delete(key);
+		active -= 1;
+		settled.push(key);
+		deferred[method](value);
+	}
+
+	const runs = {
+		ref(result) {
+			return `[run ${result.key}; id=${String(result.runId).slice(0, 8)}]`;
+		},
+		run(key, params) {
+			calls.push({ key, params });
+			active += 1;
+			maxActive = Math.max(maxActive, active);
+			const promise = new Promise((resolve, reject) => {
+				pendingRuns.set(key, { resolve, reject });
+			});
+			if (key === "unit-b") {
+				queueMicrotask(() =>
+					settleRun(key, "resolve", {
+						key,
+						ok: true,
+						runId: "run-b",
+						output: "B output",
+						secret: "must not enter verifier task",
+					}),
+				);
+			}
+			return promise;
+		},
+	};
+
+	const workflowPromise = workflow(runs);
+	for (
+		let attempt = 0;
+		attempt < 100 && !calls.some(({ key }) => key === "unit-b-verify");
+		attempt += 1
+	) {
+		await new Promise((resolve) => setImmediate(resolve));
+	}
+	assert.deepEqual(
+		calls.slice(0, 4).map(({ key }) => key),
+		["unit-a", "unit-b", "unit-c", "unit-b-verify"],
+	);
+	assert.deepEqual(settled, ["unit-b"]);
+	assert.equal(
+		calls.some(({ key }) => key === "unit-d"),
+		false,
+		"the matching verifier must take the freed slot before the next worker",
+	);
+	const verifierCall = calls.find(({ key }) => key === "unit-b-verify");
+	assert.ok(verifierCall, "the matching verifier must start after worker B settles");
+	assert.deepEqual(verifierCall.params, {
+		agent: "reviewer",
+		model: "reviewer-model",
+		task: "Verify unit-b from [run unit-b; id=run-b].\nWorker output:\nB output",
+	});
+	assert.ok(maxActive <= 3, `active children exceeded C: ${maxActive}`);
+
+	settleRun("unit-b-verify", "resolve", {
+		key: "unit-b-verify",
+		ok: true,
+		runId: "run-b-verify",
+		output: "verdict: blocked",
+		structuredOutput: { verdict: "blocked" },
+	});
+	for (
+		let attempt = 0;
+		attempt < 100 && !calls.some(({ key }) => key === "unit-d");
+		attempt += 1
+	) {
+		await new Promise((resolve) => setImmediate(resolve));
+	}
+	assert.equal(settled.includes("unit-a"), false, "worker D must not wait for unrelated worker A");
+	assert.equal(settled.includes("unit-c"), false, "worker D must not wait for unrelated worker C");
+
+	settleRun("unit-a", "resolve", { key: "unit-a", ok: true, runId: "run-a", output: "A output" });
+	for (
+		let attempt = 0;
+		attempt < 100 && !calls.some(({ key }) => key === "unit-e");
+		attempt += 1
+	) {
+		await new Promise((resolve) => setImmediate(resolve));
+	}
+	assert.ok(
+		calls.some(({ key }) => key === "unit-e"),
+		"a successful worker without a verifier must refill its slot",
+	);
+	assert.equal(settled.includes("unit-d"), false, "worker E must not wait for unrelated worker D");
+	assert.equal(settled.includes("unit-c"), false, "worker E must not wait for unrelated worker C");
+
+	settleRun("unit-d", "reject", new Error("D launch unavailable"));
+	assert.equal(
+		calls.some(({ key }) => key === "unit-d-verify"),
+		false,
+		"a failed worker must not launch a verifier",
+	);
+	assert.ok(maxActive <= 3, `active children exceeded C: ${maxActive}`);
+
+	settleRun("unit-c", "resolve", { key: "unit-c", ok: true, runId: "run-c", output: "C output" });
+	settleRun("unit-e", "resolve", { key: "unit-e", ok: true, runId: "run-e", output: "E output" });
+	const rows = await workflowPromise;
+	assert.equal(active, 0, "all fake child promises must settle");
+	assert.equal(maxActive <= 3, true, `active children exceeded C: ${maxActive}`);
+	assert.deepEqual(
+		rows.filter(({ unit }) => unit === "unit-d"),
+		[{ unit: "unit-d", stage: "worker", state: "error", error: "D launch unavailable" }],
+	);
+	assert.equal(
+		rows.some(({ unit, stage }) => unit === "unit-d" && stage === "verifier"),
+		false,
+	);
+	assert.deepEqual(
+		rows.find(({ unit, stage }) => unit === "unit-b" && stage === "verifier"),
+		{
+			unit: "unit-b",
+			stage: "verifier",
+			state: "settled",
+			runId: "run-b-verify",
+			output: "verdict: blocked",
+		},
+	);
+});
+
 test("renderWrite matches Poteto defaults and removes retired reply guidance", () => {
 	const upstreamRoot = makeTree("upstream-poteto-defaults", {
 		"skills/poteto-mode/SKILL.md": [
@@ -305,7 +478,7 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/how/SKILL.md",
-		cursor: 'Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.',
+		cursor: "Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
 		requiredPi: [
 			"workflowScript",
 			"maxSubagentSpawnsPerRun: N + 1",
@@ -316,7 +489,7 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/how/SKILL.md",
-		cursor: 'Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)\n- `readonly`: `true`\n\nBuild its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.',
+		cursor: "Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)\n- `readonly`: `true`\n\nBuild its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.",
 		requiredPi: ['subagent({ action: "execute"', "one standalone child", "async: false"],
 		forbiddenCursor: ["Task subagent", "readonly"],
 	},
@@ -453,9 +626,9 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor: "4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish. Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.",
 		requiredPi: [
 			"maxSubagentSpawnsPerRun: N + V",
-			'await the N workers with `runs.all([',
-			'return await runs.all([{ key: "<unit-id>-verify"',
-			"one stable-keyed item for each of the V dependent verifiers",
+			"globalConcurrencyLimit: C",
+			"Promise.race",
+			"matching different-family verifier",
 		],
 		forbiddenCursor: ['return `runs.run("<unit-id>-verify"'],
 	},

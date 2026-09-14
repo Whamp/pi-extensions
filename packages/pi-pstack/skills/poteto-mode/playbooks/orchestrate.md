@@ -60,7 +60,93 @@ A dependency is a context relay, not just ordering. Undeclared upstream context 
 1. **Frame.** State the done predicate as something countable ("all 126 units merged, each ledger-verified `unit-test-verified` or better"). Quantify scope: units, rough effort, expected stacks, and the wall-clock budget. If one agent could finish inside that budget, stop here and run Autonomous run instead. Collapsing must not depend on another document being present. It means do the work directly in this session, plain workers where they help, verification inline, landing as you go, and none of the store, register, or pilot machinery below. Schedule landing against the budget. By roughly 70% of it, stop spawning and land what is verified. Name the tracks per project. A contested decomposition or one-way door goes through the arena skill before the pilot. Present the framing once. Reversible prep proceeds without waiting.
 2. **Install the runtime.** Run `orch init`. Open the trail via the show-me-your-work skill, write the standing orders before any spawn, and seed `frontier.json` from existing PRs with `orch frontier set --repo <repo-dir>`.
 3. **Pilot.** Push one unit through the whole path: brief, worker, verification, stack entry, ledger row, merge. The pilot exists to falsify the brief template, the verify recipe, and the unit size while that costs one agent instead of fifty. Fix the contract from pilot evidence before any fan-out. Scale the pilot to the unit. On programs of near-identical cheap units, the first unit is the pilot, run as a normal unit with its verify command inline, and fan-out starts the moment it lands. The dedicated pilot pipeline (separate verifier agent, audit gate) is for expensive or novel unit shapes, not for clone-units where a serialized pilot has nothing to falsify.
-4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish. Launch each refill with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + V, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "<unit-id>", agent, task, model }])` for a ready-only wave. For a predeclared verifier wave, await the N workers with `runs.all([{ key: "<unit-id>", agent, task, model }])`, then use `return await runs.all([{ key: "<unit-id>-verify", agent, task, model }])` with one stable-keyed item for each of the V dependent verifiers. `N` is the ready worker count and `V` is the verifier count. Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.
+4. **Scale.** Spawn a rolling window of child stages up to the in-flight cap, refilling as each child settles.
+
+Derive positive C, N, and V from the finite unit inventory before building the request. Embed concrete C and UNITS JSON literals into workflowScript, substitute real agent, model, and task values, and omit `model` to inherit when no explicit selector is required. Set the outer request as `subagent({ action: "execute", input: { async: true, globalConcurrencyLimit: C, maxSubagentSpawnsPerRun: N + V, workflowScript } })`; C counts workers and verifiers together, globalConcurrencyLimit is the same C backstop, and N + V is cumulative admission. N is the number of worker units and V is the number of units with a verifier.
+
+Use this `workflowScript` body. Keep `pending` as the single source of truth for the cap. A successful worker launches its matching different-family verifier before the next worker fills that slot. A failed worker records neutral evidence and gets no verifier.
+
+```js
+const C = 3;
+const UNITS = [
+  { key: "unit-a", worker: { agent: "worker", model: "worker-model", task: "Work on unit A" } },
+  { key: "unit-b", worker: { agent: "worker", model: "worker-model", task: "Work on unit B" }, verifier: { agent: "reviewer", model: "reviewer-model" } },
+  { key: "unit-c", worker: { agent: "worker", model: "worker-model", task: "Work on unit C" } },
+  { key: "unit-d", worker: { agent: "worker", model: "worker-model", task: "Work on unit D" } },
+  { key: "unit-e", worker: { agent: "worker", model: "worker-model", task: "Work on unit E" } },
+];
+let nextUnit = 0;
+const rows = [];
+let pending = [];
+
+function errorText(error) {
+  return error && typeof error.message === "string" ? error.message : String(error);
+}
+
+function observeStage(key, unit, kind, launch) {
+  return launch.then(
+    (result) => ({ key, unit, kind, result }),
+    (error) => ({ key, unit, kind, error: errorText(error) }),
+  );
+}
+
+function startStage(key, unit, kind, params) {
+  try {
+    return observeStage(key, unit, kind, runs.run(key, params));
+  } catch (error) {
+    return Promise.resolve({ key, unit, kind, error: errorText(error) });
+  }
+}
+
+function startWorker(unit) {
+  pending.push({
+    key: unit.key,
+    promise: startStage(unit.key, unit, "worker", unit.worker),
+  });
+}
+
+function startVerifier(unit, worker) {
+  const output = typeof worker.output === "string" ? worker.output : "";
+  const task = "Verify " + unit.key + " from " + runs.ref(worker) + ".\nWorker output:\n" + output;
+  pending.push({
+    key: unit.key + "-verify",
+    promise: startStage(unit.key + "-verify", unit, "verifier", { ...unit.verifier, task }),
+  });
+}
+
+function evidenceRow(done) {
+  if (done.error !== undefined) return { unit: done.unit.key, stage: done.kind, state: "error", error: done.error };
+  const result = done.result;
+  return {
+    unit: done.unit.key,
+    stage: done.kind,
+    state: "settled",
+    ...(result.runId !== undefined ? { runId: result.runId } : {}),
+    output: result.output,
+  };
+}
+
+try {
+  while (nextUnit < UNITS.length || pending.length > 0) {
+    while (pending.length < C && nextUnit < UNITS.length) {
+      startWorker(UNITS[nextUnit]);
+      nextUnit += 1;
+    }
+    const done = await Promise.race(pending.map((entry) => entry.promise));
+    pending = pending.filter((entry) => entry.key !== done.key);
+    rows.push(evidenceRow(done));
+    if (done.kind === "worker" && done.error === undefined && done.result && done.result.ok === true && done.unit.verifier) {
+      startVerifier(done.unit, done.result);
+    }
+  }
+  return rows;
+} finally {
+  await Promise.allSettled(pending.map((entry) => entry.promise));
+}
+```
+
+Each `Promise.race` removes its settled entry before refill. Verifier tasks include only the matching worker reference from `runs.ref(worker)` and returned output under the child maxOutput contract, never the full result object. Every direct `runs.run` rejection becomes neutral stage error evidence, and the final `Promise.allSettled` observes pending promises on exceptional exit. Returned rows are evidence for drain-time classification, not verification verdicts.
+Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.
 5. **Drain.** Run the queue discipline below at every drain point.
 6. **Land.** Landing is continuous, never a terminal phase. Integration starts with the first verified unit and runs alongside the remaining waves. On heavy repos the stacker is a standing role from wave one, integrating as units verify. On repos where local git is cheap, the coordinator lands verified units itself per Roles. Keep the frontier green before upper-stack work. Stack safety governs. Advance `frontier.json` only on merge or reported new head SHAs.
 7. **Close.** Drain the final inbox, reconcile every spawned agent to a terminal row (done, abandoned, zombie-reconciled), confirm the predicate on the real artifact, confirm every landed PR has a verdict for its current head SHA, audit the trail per show-me-your-work including its cross-model review, encode recurring corrections into `preferences.md` or the brief template. Leave the store intact. It is the postmortem.
