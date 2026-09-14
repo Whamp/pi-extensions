@@ -56,7 +56,7 @@ Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pst
   `/skill:name` still loads the Skill body.
   The four Discoverable skills are `how`, `why`, `unslop`, and `typescript-best-practices`.
 - Slash commands are `/skill:<name>` instead of `/name`.
-- Subagent delegation uses pi-subagents (`subagent({ agent, task })`) instead of Cursor's Task tool. This package does not ship a replacement `subagent` tool.
+- Subagent delegation uses pi-subagents. Launch one child with `subagent({ action: "execute", input: { agent, task } })`. Set `input.async: true` for background work. Run parallel or dependent children in one `workflowScript` with stable keys. This package does not ship the `subagent` tool.
 - Session transcripts live under `~/.pi/agent/sessions/` instead of `~/.cursor/projects/`. The active file is `$PI_SESSION_FILE`. Files are grouped by cwd slug (`--<cwd>--`, absolute cwd with `/` replaced by `-`).
 - The benny automation pack is not ported; it depends on Cursor automations. Model roles live in `~/.pi/agent/pstack/models.json`, written by `/setup-pstack` and injected only when a role has a real model slug.
 - `make-bot-ui` is not ported. It is Cursor Grok Bot / routine webhook UI.

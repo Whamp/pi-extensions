@@ -1,6 +1,7 @@
 ---
 name: why
 description: "Use for 'why does X work this way', 'why we picked Y', design rationale, regressions, postmortems, or data-backed thresholds. Discovers available MCPs and queries each evidence category (source control, issue tracker, long-form docs, real-time chat, infrastructure observability, error tracking, product analytics warehouse) in parallel, then returns a cited read on decisions and tradeoffs. Use how for runtime behavior."
+disable-model-invocation: true
 ---
 
 # Why
@@ -58,7 +59,9 @@ Capture this as seed context (file paths, symbols, commits, PR numbers, linked t
 
 ### Discovery
 
-Before spawning investigators, the parent lists its available MCP and extension tools. Map each available provider to one evidence category:
+Before spawning investigators, list the available MCPs from the Cursor environment. Use the available-tools map when present. Otherwise inspect the `mcps/` directory Cursor exposes for enabled MCP servers.
+
+Map each available MCP to one evidence category:
 
 1. Source control history
 2. Issue / ticket tracker
@@ -70,26 +73,25 @@ Before spawning investigators, the parent lists its available MCP and extension 
 
 Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. A child does not inherit ambient MCP or extension tools. Use a custom agent for a child-side lookup only when that agent explicitly lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`.
+Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search.
 
-Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await the investigators with `runs.all([{ key: "investigate-<category>", agent: "worker", task, model }])`, then return `runs.run("synthesize-why", { agent: "worker", task, model })` with their outputs. `N` is the number of evidence categories launched. Don't ask one agent to cover multiple categories.
+Launch all matching investigators in a single message so they run concurrently. Don't ask one agent to cover multiple MCPs.
 
-Each investigator uses:
-- agent: "worker"
-- `model`: `why investigators` (default inherit-parent)
-- `task`: instruct the investigator to inspect only
+Subagent config (each):
+- `subagent_type`: `generalPurpose`
+- `model`: your configured why-investigators model (default `grok-4.6-fast-xhigh`)
+- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`
-2. The category playbook `references/sources/<source>.md` as an analysis rubric for the parent's evidence packet, not as child tool instructions
-3. The parent's evidence packet for that category, including null results and gaps
-4. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)
-5. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
-6. The user's original question
+2. The category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`
+3. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)
+4. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
+5. The user's original question
 
 ### Investigator roster. One per available evidence category
 
-Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns exactly one evidence packet.
+Spawn one investigator per category that has a matching MCP. Each owns exactly one tool or MCP.
 
 Each entry names the category and the kind of "why" it uniquely surfaces. Use it to know what to expect back, how to name a gap when a category returns empty, and (only in the rare provably-irrelevant case) to justify a skip.
 
@@ -118,9 +120,11 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-The same workflow launches `synthesize-why` after every investigator settles. It uses:
-- agent: "worker"
-- `model`: `why synthesizer` (default inherit-parent)
+Spawn one synthesizer subagent:
+
+- `subagent_type`: `generalPurpose`
+- `model`: your configured why-synthesizer model (default `claude-fable-5-1-thinking-max`)
+- `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.
 
 The synthesizer gets:
 1. The investigator findings, including any null results and any categories skipped with justification
@@ -128,8 +132,6 @@ The synthesizer gets:
 3. The user's original question
 4. The epistemics framework from `references/epistemics.md`
 5. The synthesizer prompt template from `references/synthesizer-prompt.md`
-
-After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.
 
 ## Step 5. Present
 
