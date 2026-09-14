@@ -1,6 +1,6 @@
 # Cursor pstack caller-guidance fixture
 
-This fixture contains the upstream caller-guidance files adapted by `reground-from-cursor.mjs`.
+This fixture intentionally vendors only the upstream caller-guidance files adapted by `reground-from-cursor.mjs`.
 
 Source: `cursor/plugins` commit `71ed0d1076fec562c1b74ee353121a8d00f75382`.
 
