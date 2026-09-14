@@ -10,9 +10,14 @@ import {
 	assertNoLegacyPiCallerGuidance,
 	classify,
 	plan,
+	renderWrite,
 } from "./reground-from-cursor.mjs";
 
 const SKILL_BODY = "# fixture skill body\n";
+const UPSTREAM_POTETO_EVIDENCE_BULLET =
+	"- **Every claim carries its evidence or its label in the same sentence.** Measured, inferred, or guess. A prediction or an unseen cause is a guess. Never hand the human a check you could run.";
+const UPSTREAM_POTETO_DEFAULTS =
+	"**Defaults for every `Task` call.** `run_in_background: true`, agent mode (readonly strips MCP), file pointers not inlined context, explicit model per role (configurable via `/setup-pstack`. Defaults `grok-4.6-fast-xhigh` for code, `claude-fable-5-1-thinking-max` for prose and judgment). Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to your strongest judgment model (`claude-fable-5-1-thinking-max`), whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the `/setup-pstack` rule override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model (omit Task `model`).";
 
 const CURSOR_FILES = {
 	"skills/how/SKILL.md": SKILL_BODY,
@@ -80,6 +85,14 @@ function classTable(planned, kind) {
 		.filter((action) => action.kind === kind)
 		.map((action) => [action.rel, action.class])
 		.sort((a, b) => (a[0] < b[0] ? -1 : 1));
+}
+
+function extractPotetoDefaultsSection(text) {
+	const start = text.indexOf("**Defaults for every child launch.**");
+	assert.notEqual(start, -1, "missing Pi child defaults");
+	const end = text.indexOf("\n\nYou own every subagent's work.", start);
+	assert.notEqual(end, -1, "missing end of Pi child defaults");
+	return text.slice(start, end);
 }
 
 test("asRelPath rejects traversal and absolute paths", () => {
@@ -173,113 +186,202 @@ test("plan dry-run derives count and config patches only for a stale destination
 	assert.deepEqual(synced.counts, stale.counts);
 });
 
-test("adapt transforms Cursor caller guidance to catalog workflows", () => {
-	const direct = applyBodyTransforms(
-		'Spawn subagent_type: "poteto-agent" for this task.',
-		"skills/poteto-mode/SKILL.md",
-	);
-	assert.equal(
-		direct,
-		'Spawn subagent({ action: "execute", input: { agent: "poteto-agent", task } }) for this task.',
-	);
-	assert.equal(
-		applyBodyTransforms(
-			'subagent({ agent: "comment-sicko", task })',
-			"skills/no-comments/SKILL.md",
-		),
-		'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
-	);
+test("renderWrite matches the shipped Poteto defaults and removes retired reply guidance", () => {
+	const upstreamRoot = makeTree("upstream-poteto-defaults", {
+		"skills/poteto-mode/SKILL.md": [
+			"---",
+			"name: Poteto Mode",
+			"description: fixture",
+			"mode: agent",
+			"---",
+			"",
+			"# Poteto mode",
+			"",
+			"## Subagents",
+			"",
+			'**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers).',
+			"",
+			UPSTREAM_POTETO_DEFAULTS,
+			"",
+			"You own every subagent's work. Review the diff and write your own summary.",
+			"",
+			"## Writing the reply",
+			"",
+			"- **Never fabricate a link, citation, or transcript reference.** Link only artifacts you produced or read this session.",
+			UPSTREAM_POTETO_EVIDENCE_BULLET,
+			"",
+			"## Comments",
+			"",
+			"Keep comments useful.",
+			"",
+		].join("\n"),
+	});
+	const rel = "skills/poteto-mode/SKILL.md";
+	const generated = renderWrite({ rel, class: "adapt" }, { from: upstreamRoot });
+	const shipped = readFileSync(join(packageRoot, rel), "utf8");
 
-	const cases = [
+	assert.deepEqual(
 		{
-			rel: "skills/how/SKILL.md",
-			text: "Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- agent: \"worker\"\n- `model`: `how explorers` (default inherit-parent)\n- tools: read-only (`read, grep, find, ls, bash`)\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", "runs.all([", 'runs.run("explain",'],
+			defaults: extractPotetoDefaultsSection(generated),
+			evidenceBulletPresent: generated.includes(UPSTREAM_POTETO_EVIDENCE_BULLET),
 		},
 		{
-			rel: "skills/how/SKILL.md",
-			text: 'Spawn one child that explores and explains in one pass:\n\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: instruct the child to inspect only and not modify files\n\nBuild its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.',
-			expected: ['subagent({ action: "execute"', "one standalone child", "async: false"],
+			defaults: extractPotetoDefaultsSection(shipped),
+			evidenceBulletPresent: shipped.includes(UPSTREAM_POTETO_EVIDENCE_BULLET),
+		},
+	);
+});
+
+const CALLER_GUIDANCE_CONCEPTS = [
+	{
+		rel: "skills/poteto-mode/SKILL.md",
+		cursor: 'Spawn subagent_type: "poteto-agent" for this task.',
+		requiredPi: [
+			'Spawn subagent({ action: "execute", input: { agent: "poteto-agent", task } }) for this task.',
+		],
+		forbiddenCursor: ["subagent_type"],
+	},
+	{
+		rel: "skills/no-comments/SKILL.md",
+		cursor: 'subagent({ agent: "comment-sicko", task })',
+		requiredPi: [
+			'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
+		],
+		forbiddenCursor: ['subagent({ agent: "comment-sicko", task })'],
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		cursor: "Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- agent: \"worker\"\n- `model`: `how explorers` (default inherit-parent)\n- tools: read-only (`read, grep, find, ls, bash`)\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", "runs.all([", 'runs.run("explain",'],
+		forbiddenCursor: ["Spawn all explorers in a single message", "tools: read-only"],
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		cursor: 'Spawn one child that explores and explains in one pass:\n\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: instruct the child to inspect only and not modify files\n\nBuild its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.',
+		requiredPi: ['subagent({ action: "execute"', "one standalone child", "async: false"],
+		forbiddenCursor: ["Spawn one child that explores and explains"],
+	},
+	{
+		rel: "skills/arena/SKILL.md",
+		cursor: "Spawn all N subagents in one message with `run_in_background: true`.",
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", "runs.all([", 'runs.run("cross-judge",'],
+		forbiddenCursor: ["Spawn all N subagents in one message", "run_in_background"],
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		cursor: 'Spawn all N workers in one message with `environment: "cloud"`, `run_in_background: true`.',
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
+		forbiddenCursor: ["Spawn all N workers in one message", "environment:", "run_in_background"],
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		cursor: "When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.",
+		requiredPi: ["`cwd` or `baseRef` under `input`"],
+		forbiddenCursor: ["cloud_base_branch"],
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		cursor: "One message, three `subagent()` launches, one per reviewer.",
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: 4", 'runs.run("synthesize-reviews",'],
+		forbiddenCursor: ["One message, three `subagent()` launches"],
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		cursor: "Launch all matching investigators in a single message so they run concurrently.",
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", 'runs.run("synthesize-why",'],
+		forbiddenCursor: ["Launch all matching investigators in a single message"],
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		cursor: "Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` for the selected MCP\n3. The user's original question\n\n### Investigator roster. One per available evidence category\n\nSpawn one investigator per category that has a matching MCP. Each owns exactly one tool or MCP.",
+		requiredPi: ["parent's evidence packet", "including null results and gaps", "owns exactly one evidence packet"],
+		forbiddenCursor: ["for the selected MCP", "matching MCP", "one tool or MCP"],
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		cursor: "Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.",
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all([", "interrogate reviewers"],
+		forbiddenCursor: ["using the Task tool"],
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		cursor: "If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent, and retry.",
+		requiredPi: ['action: "models"', "Explicit selectors do not fall back"],
+		forbiddenCursor: ["Task tool's error message"],
+	},
+	{
+		rel: "skills/poteto-mode/SKILL.md",
+		cursor: '**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers).',
+		requiredPi: ["one standalone child", "Put every operation field under `input`"],
+		forbiddenCursor: ["subagent_type"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		cursor: '3. Explore in subagents with subagent_type: "poteto-agent".',
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
+		forbiddenCursor: ["subagent_type"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/orchestrate.md",
+		cursor: [
+			"Agents are spawned, resumed, and drained only through the Task tool.",
+			"Spawns its workers and verifiers (nesting works to depth 3, and a nested spawn has the full Task schema including `environment`).",
+			"- Never resume an agent to check on it. Probe the cloud agent's status in the Cursor dashboard.",
+			"- After a Cursor restart: local agents are dead, cloud work is not.",
+			'4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish.',
+		].join("\n"),
+		requiredPi: [
+			'action: "execute"',
+			"subagentOnlyExtensions",
+			'action: "status"',
+			"After a Pi restart",
+			"workflowScript",
+			"maxSubagentSpawnsPerRun: N + V",
+			"return await runs.all([",
+		],
+		forbiddenCursor: ["Task tool", "Task schema", "Cursor dashboard", "Cursor restart"],
+	},
+];
+
+test("adapt transforms Cursor caller guidance to catalog workflows", () => {
+	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
+		const transformed = applyBodyTransforms(concept.cursor, concept.rel);
+		for (const required of concept.requiredPi) {
+			assert.equal(transformed.includes(required), true, `${concept.rel} should include ${required}`);
+		}
+		for (const forbidden of concept.forbiddenCursor) {
+			assert.equal(transformed.includes(forbidden), false, `${concept.rel} should remove ${forbidden}`);
+		}
+	}
+});
+
+test("caller remapping preserves unrelated prose for every concept and context", () => {
+	const contexts = [
+		{
+			before: "Release sequencing remains a separate concern.",
+			after: "Rollback ownership remains with the release guide.",
 		},
 		{
-			rel: "skills/arena/SKILL.md",
-			text: "Spawn all N subagents in one message with `run_in_background: true`.",
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", "runs.all([", 'runs.run("cross-judge",'],
-		},
-		{
-			rel: "skills/swarm/SKILL.md",
-			text: 'Spawn all N workers in one message with `environment: "cloud"`, `run_in_background: true`.',
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
-		},
-		{
-			rel: "skills/swarm/SKILL.md",
-			text: "When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.",
-			expected: ["`cwd` or `baseRef` under `input`"],
-		},
-		{
-			rel: "skills/reflect/SKILL.md",
-			text: "One message, three `subagent()` launches, one per reviewer.",
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: 4", 'runs.run("synthesize-reviews",'],
-		},
-		{
-			rel: "skills/why/SKILL.md",
-			text: "Launch all matching investigators in a single message so they run concurrently.",
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", 'runs.run("synthesize-why",'],
-		},
-		{
-			rel: "skills/why/SKILL.md",
-			text: "Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` for the selected MCP\n3. The user's original question\n\n### Investigator roster. One per available evidence category\n\nSpawn one investigator per category that has a matching MCP. Each owns exactly one tool or MCP.",
-			expected: ["parent's evidence packet", "including null results and gaps", "owns exactly one evidence packet"],
-		},
-		{
-			rel: "skills/interrogate/SKILL.md",
-			text: "Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.",
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all([", "interrogate reviewers"],
-		},
-		{
-			rel: "skills/interrogate/SKILL.md",
-			text: "If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent, and retry.",
-			expected: ['action: "models"', "Explicit selectors do not fall back"],
-		},
-		{
-			rel: "skills/poteto-mode/SKILL.md",
-			text: '**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers).',
-			expected: ["one standalone child", "Put every operation field under `input`"],
-		},
-		{
-			rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-			text: '3. Explore in subagents with subagent_type: "poteto-agent".',
-			expected: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
-		},
-		{
-			rel: "skills/poteto-mode/playbooks/orchestrate.md",
-			text: [
-				"Agents are spawned, resumed, and drained only through the Task tool.",
-				"Spawns its workers and verifiers (nesting works to depth 3, and a nested spawn has the full Task schema including `environment`).",
-				"- Never resume an agent to check on it. Probe the cloud agent's status in the Cursor dashboard.",
-				"- After a Cursor restart: local agents are dead, cloud work is not.",
-				'4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish.',
-			].join("\n"),
-			expected: [
-				'action: "execute"',
-				"subagentOnlyExtensions",
-				'action: "status"',
-				"After a Pi restart",
-				"workflowScript",
-				"maxSubagentSpawnsPerRun: N + V",
-				"return await runs.all([",
-			],
+			before: "Test isolation belongs to the neighboring section.",
+			after: "Review policy belongs to the following section.",
 		},
 	];
 
-	for (const fixture of cases) {
-		const transformed = applyBodyTransforms(fixture.text, fixture.rel);
-		for (const expected of fixture.expected) {
-			assert.equal(transformed.includes(expected), true, `${fixture.rel} should include ${expected}`);
+	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
+		for (const [contextIndex, context] of contexts.entries()) {
+			const input = `${context.before}\n\n${concept.cursor}\n\n${context.after}`;
+			const transformed = applyBodyTransforms(input, concept.rel);
+			const label = `${concept.rel} context ${contextIndex + 1}`;
+
+			assert.equal(transformed.startsWith(`${context.before}\n\n`), true, `${label} changed before prose`);
+			assert.equal(transformed.endsWith(`\n\n${context.after}`), true, `${label} changed after prose`);
+			for (const required of concept.requiredPi) {
+				assert.equal(transformed.includes(required), true, `${label} should include ${required}`);
+			}
+			for (const forbidden of concept.forbiddenCursor) {
+				assert.equal(transformed.includes(forbidden), false, `${label} should remove ${forbidden}`);
+			}
 		}
-		assert.equal(transformed.includes("run_in_background"), false);
-		assert.equal(transformed.includes("environment:"), false);
-		assert.equal(transformed.includes("Task tool"), false);
 	}
 });
 
