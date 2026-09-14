@@ -509,8 +509,14 @@ const POTETO_INTRO = [
 	"",
 ].join("\n");
 
-const SUBAGENT_DEFAULTS =
-	"**Defaults for every child launch.** Put every operation field under `input`. Set `input.async: true` for background work. Pass file pointers instead of inlining context. Multiple children or dependent stages use one `subagent({ action: \"execute\", input: { workflowScript, ... } })` call with stable-keyed `runs.run` and `runs.all` steps. Count later synthesis and review children in `input.maxSubagentSpawnsPerRun` when the workflow sets it. A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools. Select an explicit model per role when `/setup-pstack` configures one. Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default. A role line of `inherit-parent` or `auto` runs that role on the parent chat model, so omit `model`.";
+const SUBAGENT_DEFAULTS = [
+	'**Defaults for every child launch.** Set `input.async: true` for background work. Pass file pointers instead of inlining context. Select an explicit model per role when `/setup-pstack` configures one. Multiple children or dependent stages use one `subagent({ action: "execute", input: { workflowScript, ... } })` call. Inside the script, use `await runs.all([{ key: "stable-key", ... }])` for fan-out and `return runs.run("stable-key", { ... })` for a direct or final child. Count every later synthesis or review child in `input.maxSubagentSpawnsPerRun` when the workflow sets that limit.',
+	"A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent for `why`, `reflect`, and `interrogate` unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools.",
+	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case.",
+].join("\n\n");
+
+const POTETO_REPLY_EVIDENCE_BULLET =
+	"- **Every claim carries its evidence or its label in the same sentence.** Measured, inferred, or guess. A prediction or an unseen cause is a guess. Never hand the human a check you could run.";
 
 function patchPotetoModePi(text) {
 	if (!text.includes("`/poteto-mode` enables this mode")) {
@@ -521,6 +527,7 @@ function patchPotetoModePi(text) {
 		/\*\*Defaults for every (?:`subagent\(\)`|child) launch\.\*\*[^\n]*/,
 		SUBAGENT_DEFAULTS,
 	);
+	text = text.replace(`${POTETO_REPLY_EVIDENCE_BULLET}\n`, "");
 	return text;
 }
 
@@ -726,6 +733,12 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			"Before launching the Phase B workflow, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. The workflow's `cross-judge` child starts only after the candidates settle. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. The parent reads completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
 	},
 	{
+		rel: "skills/arena/SKILL.md",
+		pattern: /If a candidate fails to produce output, proceed with N-1 and note the dropout in the synthesis record\./,
+		replacement:
+			"If a candidate fails to produce output, pass the completed N-1 results to the judge and note the dropout in the synthesis record.",
+	},
+	{
 		rel: "skills/swarm/SKILL.md",
 		pattern: /^Spawn all N workers .*$/m,
 		replacement:
@@ -740,36 +753,48 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		rel: "skills/reflect/SKILL.md",
 		pattern: /^One message, three .*launches.*$/m,
 		replacement:
-			'The parent resolves transcript references with its own MCP and extension tools before launch. Put the transcript path and that evidence in one bounded digest. Children do not inherit those tools.\n\nLaunch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.',
+			'The parent resolves any ticket, chat, document, observability, error-tracker, or analytics references from the transcript before launch. Put the transcript path and fetched evidence in one bounded digest. Children do not inherit the parent\'s MCP or extension tools.\n\nLaunch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the three reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.',
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		pattern: /^Pass each template verbatim, substituting the transcript path or digest where marked\..*$/m,
+		replacement:
+			'Each reviewer item uses `agent: "worker"`, its configured model, and a task that says to inspect only. Pass each template verbatim, substituting the transcript path or the bounded digest where marked. Reviewers return findings through their workflow results.',
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern: /^One .*launch, .*reflect synthesizer.*$/m,
 		replacement:
-			'The same workflow returns `runs.run("synthesize-reviews", { agent: "worker", task, model })` after every reviewer settles. Run it using `reflect synthesizer` (default inherit-parent). After completion, the parent spot-verifies citations with its own MCP and extension tools.',
+			'The workflow\'s `synthesize-reviews` child uses `agent: "worker"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer\'s full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.',
 	},
 	{
 		rel: "skills/why/SKILL.md",
-		pattern: /^Before spawning investigators, list the available MCPs .*$/m,
+		pattern:
+			/^Before spawning investigators, list the available MCPs .*\n\nMap each available MCP to one evidence category:$/m,
 		replacement:
-			"Before spawning investigators, the parent lists its available MCP and extension tools.",
+			"Before spawning investigators, the parent lists its available MCP and extension tools. Map each available provider to one evidence category:",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern: /^Aim for a complete \*\*coverage map\*\*.*$/m,
 		replacement:
-			"Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. Children do not inherit ambient MCP or extension tools.",
+			"Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. A child does not inherit ambient MCP or extension tools. Use a custom agent for a child-side lookup only when that agent explicitly lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern: /^Launch all matching investigators .*$/m,
 		replacement:
-			'Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "investigate-<category>", agent: "worker", task, model }])`, then return `runs.run("synthesize-why", { agent: "worker", task, model })` with their outputs.',
+			'Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await the investigators with `runs.all([{ key: "investigate-<category>", agent: "worker", task, model }])`, then return `runs.run("synthesize-why", { agent: "worker", task, model })` with their outputs. `N` is the number of evidence categories launched. Don\'t ask one agent to cover multiple categories.',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^Subagent config \(each\):$/m,
+		replacement: "Each investigator uses:",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern: /^- `task`: state whether the child may modify files.*$/m,
-		replacement: '- `task`: instruct the investigator to inspect only and include the parent\'s evidence packet',
+		replacement: "- `task`: instruct the investigator to inspect only",
 	},
 	{
 		rel: "skills/why/SKILL.md",
@@ -787,7 +812,13 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^Spawn one synthesizer subagent:\n\n- agent: "worker"\n- `model`: `why synthesizer`[^\n]*\n- `task`: state whether the child may modify files[^\n]*/m,
 		replacement:
-			'The same workflow returns `runs.run("synthesize-why", { agent: "worker", task, model })` after every investigator settles. It uses:\n- agent: "worker"\n- `model`: `why synthesizer` (default inherit-parent)\n\nThe parent spot-verifies citations with its own MCP and extension tools after completion.',
+			'The same workflow launches `synthesize-why` after every investigator settles. It uses:\n- agent: "worker"\n- `model`: `why synthesizer` (default inherit-parent)',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern: /^5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$/m,
+		replacement:
+			"5. The synthesizer prompt template from `references/synthesizer-prompt.md`\n\nAfter the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -797,7 +828,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
-		pattern: /^- tools: read-only .*$/m,
+		pattern: /^- (?:tools: read-only .*|`task`: instruct the child to inspect only and not modify files)$/m,
 		replacement: "- `task`: instruct the reviewer to inspect only and not modify files",
 	},
 	{
@@ -813,6 +844,11 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			'**Use `subagent({ action: "execute", input: { agent: "poteto-agent", task } })` for one standalone child inside a playbook step.** Put every operation field under `input`. `/poteto-mode` and `poteto-agent` route through the same wrapper. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own agent for diverse-model review. Respect what the skill prescribes. Do not override it with `poteto-agent`.',
 	},
 	{
+		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
+		pattern: /Multiple child launches on the same branch/,
+		replacement: "Multiple `subagent()` launches on the same branch",
+	},
+	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
 		pattern: /Agents are spawned, resumed, and drained only through the subagent catalog\./,
 		replacement:
@@ -822,14 +858,14 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
 		pattern: / \(nesting works to depth 3, and a nested spawn has the full subagent catalog schema including `(?:async: true|environment)`\)/,
 		replacement:
-			'. Nesting works to depth 3. A custom sub-coordinator agent lists `subagent` in its tool allowlist and loads extension-tool providers through `extensions` or `subagentOnlyExtensions`',
+			'. Nesting works to depth 3. A custom sub-coordinator agent must list `subagent` in its tool allowlist. It must also list each extension tool and load its provider through `extensions` or `subagentOnlyExtensions`',
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
 		pattern:
-			/Always `async: true` unless the task needs this machine:[^\n]*Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths\./,
+			/Always `async: true` unless the task needs this machine:[^\n]*Run a unit's verifier on a different model family from its worker\./,
 		replacement:
-			"Set `input.async: true` for background work. Set `input.cwd` when the task needs a specific checkout or machine-local resource. Briefs inline what an external provider needs or point at repository paths it can read.",
+			"Set `input.async: true` for background work. Set `input.cwd` when the task needs a specific checkout, local transcript, simulator, IDE state, or machine-local auth. Briefs inline what an external provider needs or point at repository paths it can read. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit's verifier on a different model family from its worker. A role's model line selects only the model. It does not grant tools or extensions.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
