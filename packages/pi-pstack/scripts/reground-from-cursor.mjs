@@ -505,12 +505,15 @@ const SUBAGENT_DEFAULTS = [
 	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case.",
 ].join("\n\n");
 
+const RETIRED_POTETO_EVIDENCE_BULLET =
+	"- **Every claim carries its evidence or its label in the same sentence.** Measured, inferred, or guess. A prediction or an unseen cause is a guess. Never hand the human a check you could run.";
+
 function patchPotetoModePi(text) {
 	if (!text.includes("`/poteto-mode` enables this mode")) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
-	return text;
+	return text.replace(`${RETIRED_POTETO_EVIDENCE_BULLET}\n`, "");
 }
 
 export function plan(paths) {
@@ -702,6 +705,16 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		pattern: /a real terminal `\/loop`/,
+		replacement: "a recurring wake",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		pattern: /`control-ui` or `control-cli` from `cursor-team-kit`/,
+		replacement: "the project's verification skill or harness",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
 		pattern:
 			/^3\. Explore in subagents with `subagent_type: "poteto-agent"` and an explicit model per the Subagents section \(the \*\*guard-the-context-window\*\* principle skill\)\. Each returns file pointers, conventions, test commands, and entry points\. No inlined dumps\.$/m,
 		replacement:
@@ -839,8 +852,15 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		pattern: /Multiple `Task` calls on the same branch/,
-		replacement: "Multiple `subagent()` launches on the same branch",
+		pattern:
+			/Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin\/<branch>` between them\./,
+		replacement:
+			"Multiple `subagent()` launches on the same branch use `input.worktree: true` with `input.baseRef` for separate managed checkouts. When reusing one existing checkout, serialize the launches and run `git fetch && git reset --hard origin/<branch>` between them.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
+		pattern: /`\/deslop` from `cursor-team-kit`/,
+		replacement: "`/skill:deslop`",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
@@ -902,7 +922,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^4\. \*\*Scale\.\*\* Spawn a rolling window of workers up to the in-flight cap, refilling as children finish\. Blocking batches pay the slowest child of every batch\. Spawn track sub-coordinators only past the one-drain threshold in Roles\. Recompute ready work after each drain\. Relay upstream reports into downstream briefs\. Keep sibling communication upward only\. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one\.$/m,
 		replacement:
-			'4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish. Launch each refill with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + V, workflowScript } })` call. Use `return await runs.all([{ key: "<unit-id>", agent, task, model }])` for a ready-only wave. For a predeclared dependent verifier, await that `runs.all` result and then return `runs.run("<unit-id>-verify", { ... })` in the same script. `N` is the ready worker count and `V` is the number of later verifiers. Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.',
+			'4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish. Launch each refill with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + V, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "<unit-id>", agent, task, model }])` for a ready-only wave. For a predeclared verifier wave, await the N workers with `runs.all([{ key: "<unit-id>", agent, task, model }])`, then use `return await runs.all([{ key: "<unit-id>-verify", agent, task, model }])` with one stable-keyed item for each of the V dependent verifiers. `N` is the ready worker count and `V` is the verifier count. Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.',
 	},
 ];
 

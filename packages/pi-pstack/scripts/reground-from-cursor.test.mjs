@@ -248,7 +248,7 @@ test("shipped Pi caller guidance is not remapped as Cursor source", () => {
 	);
 });
 
-test("renderWrite matches the shipped Poteto defaults and preserves reply guidance", () => {
+test("renderWrite matches Poteto defaults and removes retired reply guidance", () => {
 	const upstreamRoot = makeTree("upstream-poteto-defaults", {
 		"skills/poteto-mode/SKILL.md": [
 			"---",
@@ -283,7 +283,7 @@ test("renderWrite matches the shipped Poteto defaults and preserves reply guidan
 	const shipped = readFileSync(join(packageRoot, rel), "utf8");
 
 	assert.equal(extractPotetoDefaultsSection(generated), extractPotetoDefaultsSection(shipped));
-	assert.equal(generated.includes(UPSTREAM_POTETO_EVIDENCE_BULLET), true);
+	assert.equal(generated.includes(UPSTREAM_POTETO_EVIDENCE_BULLET), false);
 });
 
 const CALLER_GUIDANCE_CONCEPTS = [
@@ -402,6 +402,24 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		cursor: "In a local session, a real terminal `/loop`.",
+		requiredPi: ["In a local session, a recurring wake."],
+		forbiddenCursor: ["terminal a recurring wake"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		cursor: "Drive through `control-ui` or `control-cli` from `cursor-team-kit`.",
+		requiredPi: ["Drive through the project's verification skill or harness."],
+		forbiddenCursor: ["harness from the project's verification skill"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
+		cursor: "Run `/deslop` from `cursor-team-kit` over the diff before commit.",
+		requiredPi: ["Run `/skill:deslop` over the diff before commit."],
+		forbiddenCursor: ["from the project's verification skill"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
 		cursor: '3. Explore in subagents with `subagent_type: "poteto-agent"` and an explicit model per the Subagents section (the **guard-the-context-window** principle skill). Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.',
 		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
 		forbiddenCursor: ["subagent_type"],
@@ -433,8 +451,13 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
 		cursor: "4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish. Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.",
-		requiredPi: ["maxSubagentSpawnsPerRun: N + V", "return await runs.all(["],
-		forbiddenCursor: [],
+		requiredPi: [
+			"maxSubagentSpawnsPerRun: N + V",
+			'await the N workers with `runs.all([',
+			'return await runs.all([{ key: "<unit-id>-verify"',
+			"one stable-keyed item for each of the V dependent verifiers",
+		],
+		forbiddenCursor: ['return `runs.run("<unit-id>-verify"'],
 	},
 	{
 		rel: "skills/how/SKILL.md",
@@ -526,8 +549,13 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		cursor: "Multiple `Task` calls on the same branch each get their own worktree.",
-		requiredPi: ["Multiple `subagent()` launches on the same branch"],
+		cursor: "Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them.",
+		requiredPi: [
+			"Multiple `subagent()` launches on the same branch",
+			"`input.worktree: true`",
+			"`input.baseRef`",
+			"When reusing one existing checkout, serialize the launches",
+		],
 		forbiddenCursor: ["Task` calls"],
 	},
 	{

@@ -39,7 +39,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
   - [ ] `git show origin/main:<control skill path>`
   - [ ] `git show origin/main:pstack/skills/poteto-mode/playbooks/opening-a-pr.md`
   - [ ] `git show origin/main:pstack/skills/<each other leaf skill the program uses>`
-- [ ] Arm the 30-minute audit tick. In a local session, a real terminal a recurring wake. In a cloud root, a cloud-sleeper wake chain. Never leave the cadence to memory.
+- [ ] Arm the 30-minute audit tick. In a local session, a recurring wake. In a cloud root, a cloud-sleeper wake chain. Never leave the cadence to memory.
 - [ ] Use this tick prompt, verbatim. "Re-read the execution playbook from trunk and the standing goal. Audit the operation against both and fix drift in this tick. Probe every active lane and judge progress by side effects only. Stand down a stuck lane and dispatch its replacement now. Then send the operator a status message, whether or not anything changed, with the queue table of PR, owner, state, and head SHA, the verdicts since the last tick, what merged, open operator gates, and blockers."
 - [ ] On the operator's hold or stand-down, send every owner a zero-writes order at once.
 
@@ -69,7 +69,7 @@ Tests alone are not sufficient verification. A PR is verified only when its unit
 
 ### Boot recipe, for every live lane
 
-Each live lane runs at the PR head. Drive through the project's verification skill or harness from the project's verification skill.
+Each live lane runs at the PR head. Drive through the project's verification skill or harness.
 
 - [ ] `git fetch origin <head-branch> && git checkout <head SHA>`.
 - [ ] <Start the backend and the surface. Wait for ready.>
