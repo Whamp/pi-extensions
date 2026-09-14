@@ -19,7 +19,18 @@ built-in and third-party tool calls.
 The packages keep their upstream `@zenspc` npm identities. This fork does not
 publish packages under a Whamp npm namespace.
 
-## Install from a checkout
+## Install
+
+Install the fork directly from GitHub:
+
+```bash
+pi install git:github.com/Whamp/pi-extensions
+```
+
+The root package loads both retained packages: the pi-pstack extension, skills,
+and subagents, plus the pi-quiet extension.
+
+## Develop from a checkout
 
 Clone the fork and install its workspace dependencies:
 
@@ -28,16 +39,6 @@ git clone https://github.com/Whamp/pi-extensions.git
 cd pi-extensions
 pnpm install --frozen-lockfile
 ```
-
-Install one or both packages into Pi:
-
-```bash
-pi install "$PWD/packages/pi-pstack"
-pi install "$PWD/packages/pi-quiet"
-```
-
-Pi links path installs to the checkout. After you edit an installed package,
-restart Pi or run `/reload`.
 
 For a single run without changing user settings, use one of these commands:
 
