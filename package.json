@@ -22,6 +22,14 @@
     "extensions": [
       "./packages/pi-quiet/src/index.ts",
       "./packages/pi-pstack/extensions/pstack/index.ts"
-    ]
+    ],
+    "skills": [
+      "./packages/pi-pstack/skills"
+    ],
+    "subagents": {
+      "agents": [
+        "./packages/pi-pstack/agents"
+      ]
+    }
   }
 }
