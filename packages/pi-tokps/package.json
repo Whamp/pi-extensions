@@ -1,0 +1,45 @@
+{
+  "name": "@zenspc/pi-tokps",
+  "version": "0.0.0",
+  "description": "Decode speed tracking for Pi assistant outputs",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Whamp/pi-extensions.git",
+    "directory": "packages/pi-tokps"
+  },
+  "bugs": {
+    "url": "https://github.com/Whamp/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-tokps#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "tokps",
+    "performance"
+  ],
+  "files": [
+    "extensions/",
+    "!extensions/**/*.test.ts",
+    "!extensions/**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/tokps/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --test extensions/tokps/*.test.mjs",
+    "prepack": "cp --remove-destination ../../LICENSE LICENSE",
+    "postpack": "ln -sfn ../../LICENSE LICENSE"
+  }
+}
