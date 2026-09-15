@@ -1,9 +1,6 @@
 import assert from "node:assert/strict";
-import { createJiti } from "/home/will/.local/share/mise/installs/node/24.16.0/lib/node_modules/@earendil-works/pi-coding-agent/node_modules/jiti/lib/jiti.mjs";
-
-const jiti = createJiti(import.meta.url, { interopDefault: false });
-const lifecycleMod = await jiti.import("./lifecycle.ts");
-const adapterMod = await jiti.import("./index.ts");
+const lifecycleMod = await import("./lifecycle.ts");
+const adapterMod = await import("./index.ts");
 
 const assistant = {
 	role: "assistant",
