@@ -1,0 +1,44 @@
+{
+  "name": "@zenspc/pi-local-vllm-thinking-budget",
+  "version": "0.0.0",
+  "description": "Per-model thinking token budgets for local vLLM reasoning models in Pi",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Whamp/pi-extensions.git",
+    "directory": "packages/pi-local-vllm-thinking-budget"
+  },
+  "bugs": {
+    "url": "https://github.com/Whamp/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-local-vllm-thinking-budget#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "vllm",
+    "thinking-budget"
+  ],
+  "files": [
+    "extensions/",
+    "!extensions/**/*.test.ts",
+    "!extensions/**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/local-vllm-thinking-budget/index.ts"
+    ]
+  },
+  "scripts": {
+    "prepack": "cp --remove-destination ../../LICENSE LICENSE",
+    "postpack": "ln -sfn ../../LICENSE LICENSE"
+  }
+}

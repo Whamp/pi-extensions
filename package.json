@@ -1,14 +1,14 @@
 {
   "name": "pi-extensions",
   "private": true,
-  "description": "Whamp fork of Pi coding agent extensions, retaining pi-pstack and pi-quiet",
+  "description": "Whamp fork of Will's Pi coding agent extensions",
   "packageManager": "pnpm@9.15.0",
   "keywords": [
     "pi-package"
   ],
   "scripts": {
     "check": "node scripts/check-packages.mjs",
-    "test": "pnpm --filter @zenspc/pi-pstack test && pnpm --filter @zenspc/pi-quiet test && node --test scripts/*.test.mjs",
+    "test": "pnpm --filter @zenspc/pi-pstack test && pnpm --filter @zenspc/pi-quiet test && pnpm --filter @zenspc/pi-answer test && pnpm --filter @zenspc/pi-files test && pnpm --filter @zenspc/pi-session-breakdown test && pnpm --filter @zenspc/pi-todos test && pnpm --filter @zenspc/pi-tokps test && node --test scripts/*.test.mjs",
     "test:local": "node scripts/check-packages.mjs && echo \"Try: pi -e ./packages/<name>\"",
     "changeset": "changeset",
     "version-packages": "changeset version",
