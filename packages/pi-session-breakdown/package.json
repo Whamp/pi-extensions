@@ -1,6 +1,6 @@
 {
   "name": "@whamp/pi-session-breakdown",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Read-only Pi session usage analytics",
   "type": "module",
   "license": "MIT",

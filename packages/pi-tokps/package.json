@@ -1,6 +1,6 @@
 {
   "name": "@whamp/pi-tokps",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Decode speed tracking for Pi assistant outputs",
   "type": "module",
   "license": "MIT",
