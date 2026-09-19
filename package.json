@@ -6,6 +6,9 @@
   "keywords": [
     "pi-package"
   ],
+  "dependencies": {
+    "undici": "^8.10.2"
+  },
   "scripts": {
     "check": "node scripts/check-packages.mjs",
     "test": "pnpm -r run test && node --test scripts/*.test.mjs",
