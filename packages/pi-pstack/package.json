@@ -1,19 +1,19 @@
 {
-	"name": "@zenspc/pi-pstack",
+	"name": "@whamp/pi-pstack",
 	"version": "0.6.0",
 	"description": "pstack for Pi: rigorous agent workflows you can parallelize with confidence - poteto-mode playbooks, engineering principles, multi-model review panels, and subagents.",
 	"type": "module",
 	"license": "MIT",
-	"author": "dhairyaar",
+	"author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/zenspc/pi-extensions.git",
+		"url": "git+https://github.com/Whamp/pi-extensions.git",
 		"directory": "packages/pi-pstack"
 	},
 	"bugs": {
-		"url": "https://github.com/zenspc/pi-extensions/issues"
+		"url": "https://github.com/Whamp/pi-extensions/issues"
 	},
-	"homepage": "https://github.com/zenspc/pi-extensions/tree/master/packages/pi-pstack#readme",
+	"homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-pstack#readme",
 	"publishConfig": {
 		"access": "public"
 	},

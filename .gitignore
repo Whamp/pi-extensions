@@ -3,6 +3,7 @@ dist/
 *.tsbuildinfo
 .DS_Store
 .pi/
+.codegraph/
 *.log
 .npmrc.local
 local-test/

@@ -1,5 +1,5 @@
 ---
-"@zenspc/pi-quiet": patch
+"@whamp/pi-quiet": patch
 ---
 
 Defer fallback renderer registration until Pi exposes its tool inventory and

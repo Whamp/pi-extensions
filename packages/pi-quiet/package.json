@@ -1,19 +1,19 @@
 {
-	"name": "@zenspc/pi-quiet",
+	"name": "@whamp/pi-quiet",
 	"version": "0.4.1",
 	"description": "Quiet Display for Pi: verb-first tool rows (built-in + Foreign), Verb Groups, sticky on/off.",
 	"type": "module",
 	"license": "MIT",
-	"author": "dhairyaar",
+	"author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
 	"repository": {
 		"type": "git",
-		"url": "git+https://github.com/zenspc/pi-extensions.git",
+		"url": "git+https://github.com/Whamp/pi-extensions.git",
 		"directory": "packages/pi-quiet"
 	},
 	"bugs": {
-		"url": "https://github.com/zenspc/pi-extensions/issues"
+		"url": "https://github.com/Whamp/pi-extensions/issues"
 	},
-	"homepage": "https://github.com/zenspc/pi-extensions/tree/master/packages/pi-quiet#readme",
+	"homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-quiet#readme",
 	"publishConfig": {
 		"access": "public"
 	},

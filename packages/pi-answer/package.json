@@ -1,9 +1,10 @@
 {
-  "name": "@zenspc/pi-answer",
+  "name": "@whamp/pi-answer",
   "version": "0.0.0",
   "description": "Interactive question extraction and answering for Pi",
   "type": "module",
   "license": "MIT",
+  "author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Whamp/pi-extensions.git",

@@ -13,6 +13,12 @@ const expectedPiManifest = {
   extensions: [
     "./packages/pi-quiet/src/index.ts",
     "./packages/pi-pstack/extensions/pstack/index.ts",
+    "./packages/pi-answer/extensions/answer/index.ts",
+    "./packages/pi-files/extensions/files/index.ts",
+    "./packages/pi-local-vllm-thinking-budget/extensions/local-vllm-thinking-budget/index.ts",
+    "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
+    "./packages/pi-todos/extensions/todos/index.ts",
+    "./packages/pi-tokps/extensions/tokps/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
   subagents: {
@@ -21,7 +27,7 @@ const expectedPiManifest = {
 };
 
 describe("root Pi package", () => {
-  it("advertises the retained extensions and all pi-pstack resources", () => {
+  it("advertises every package extension and all pi-pstack resources", () => {
     assert.deepEqual(packageJson.pi, expectedPiManifest);
   });
 

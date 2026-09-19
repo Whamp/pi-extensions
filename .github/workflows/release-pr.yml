@@ -84,7 +84,7 @@ jobs:
           git checkout -B "$DEFAULT_BRANCH" "origin/$DEFAULT_BRANCH"
 
           # tag-packages prints one tag per line; ignore non-tag footer lines
-          mapfile -t TAGS < <(node scripts/tag-packages.mjs | grep -E '^@zenspc/' || true)
+          mapfile -t TAGS < <(node scripts/tag-packages.mjs | grep -E '^@whamp/' || true)
           if [ "${#TAGS[@]}" -eq 0 ]; then
             echo "No missing package tags"
             exit 0

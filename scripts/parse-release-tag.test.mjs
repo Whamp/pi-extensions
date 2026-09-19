@@ -8,29 +8,29 @@ import { existsSync, readdirSync, readFileSync } from "node:fs";
 
 describe("parseReleaseTag", () => {
   it("parses package tag", () => {
-    assert.deepEqual(parseReleaseTag("@zenspc/pi-quiet@0.1.0"), {
-      packageName: "@zenspc/pi-quiet",
+    assert.deepEqual(parseReleaseTag("@whamp/pi-quiet@0.1.0"), {
+      packageName: "@whamp/pi-quiet",
       version: "0.1.0",
     });
   });
 
   it("parses prerelease", () => {
-    assert.deepEqual(parseReleaseTag("@zenspc/pi-pstack@0.3.2-rc.1"), {
-      packageName: "@zenspc/pi-pstack",
+    assert.deepEqual(parseReleaseTag("@whamp/pi-pstack@0.3.2-rc.1"), {
+      packageName: "@whamp/pi-pstack",
       version: "0.3.2-rc.1",
     });
   });
 
   it("strips refs/tags/", () => {
-    assert.deepEqual(parseReleaseTag("refs/tags/@zenspc/pi-quiet@1.2.3"), {
-      packageName: "@zenspc/pi-quiet",
+    assert.deepEqual(parseReleaseTag("refs/tags/@whamp/pi-quiet@1.2.3"), {
+      packageName: "@whamp/pi-quiet",
       version: "1.2.3",
     });
   });
 
   it("rejects bad tags", () => {
     assert.throws(() => parseReleaseTag("v0.1.0"), /invalid release tag/);
-    assert.throws(() => parseReleaseTag("@zenspc/pi-quiet"), /invalid release tag/);
+    assert.throws(() => parseReleaseTag("@whamp/pi-quiet"), /invalid release tag/);
     assert.throws(() => parseReleaseTag(""), /non-empty/);
   });
 });
@@ -41,7 +41,7 @@ describe("resolvePackageDir", () => {
   mkdirSync(join(packagesDir, "pi-quiet"), { recursive: true });
   writeFileSync(
     join(packagesDir, "pi-quiet", "package.json"),
-    JSON.stringify({ name: "@zenspc/pi-quiet", version: "0.1.0" }),
+    JSON.stringify({ name: "@whamp/pi-quiet", version: "0.1.0" }),
   );
 
   after(() => {
@@ -49,7 +49,7 @@ describe("resolvePackageDir", () => {
   });
 
   it("finds package by name", () => {
-    const found = resolvePackageDir(packagesDir, "@zenspc/pi-quiet", {
+    const found = resolvePackageDir(packagesDir, "@whamp/pi-quiet", {
       readdirSync,
       readFileSync,
       existsSync,
@@ -62,7 +62,7 @@ describe("resolvePackageDir", () => {
   it("throws when missing", () => {
     assert.throws(
       () =>
-        resolvePackageDir(packagesDir, "@zenspc/nope", {
+        resolvePackageDir(packagesDir, "@whamp/nope", {
           readdirSync,
           readFileSync,
           existsSync,

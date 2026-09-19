@@ -1,9 +1,10 @@
 {
-  "name": "@zenspc/pi-local-vllm-thinking-budget",
+  "name": "@whamp/pi-local-vllm-thinking-budget",
   "version": "0.0.0",
   "description": "Per-model thinking token budgets for local vLLM reasoning models in Pi",
   "type": "module",
   "license": "MIT",
+  "author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Whamp/pi-extensions.git",

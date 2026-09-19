@@ -1,6 +1,6 @@
 # Contributing
 
-Thanks for your interest in contributing to `@zenspc` Pi extensions.
+Thanks for your interest in contributing to the `@whamp` Pi extensions.
 
 - Full contributor guide: [docs/contributing.md](./docs/contributing.md)
 - Maintainer publishing notes: [docs/publishing.md](./docs/publishing.md)

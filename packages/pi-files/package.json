@@ -1,9 +1,10 @@
 {
-  "name": "@zenspc/pi-files",
+  "name": "@whamp/pi-files",
   "version": "0.0.0",
   "description": "File browser and diff actions for Pi",
   "type": "module",
   "license": "MIT",
+  "author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/Whamp/pi-extensions.git",
