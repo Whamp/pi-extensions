@@ -51,7 +51,8 @@ pnpm test
 ```
 
 Read the [contributor guide](./docs/contributing.md) for package commands and the
-[publishing guide](./docs/publishing.md) for the release train.
+[publishing guide](./docs/publishing.md) for the release train and the
+`scripts/setup-release-secrets.sh` token setup.
 
 ## Provenance and license
 

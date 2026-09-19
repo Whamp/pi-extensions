@@ -40,6 +40,16 @@ Rules that do not change without a new plan:
   - Fine-grained PAT (this repo): **Contents** read/write, **Pull requests** read/write, **Metadata** read, **Workflows** read/write
   - Store under Settings → Secrets and variables → Actions
 
+`scripts/setup-release-secrets.sh` walks through both tokens, verifies them
+against npm and the GitHub API, writes them as repo secrets, and stores them in
+Agent Vault. Re-run it to rotate either token.
+
+```bash
+./scripts/setup-release-secrets.sh
+```
+
+Manual check of the current state:
+
 ```bash
 npm whoami
 # Optional availability checks (404 means not published yet):
@@ -149,17 +159,16 @@ or tag-driven CI.
 
 ## First-time bootstrap
 
-1. Confirm `@whamp` ownership and create a granular automation token → repo secret `NPM_TOKEN`.
-2. Create the `RELEASE_TOKEN` PAT → repo secret `RELEASE_TOKEN`.
-3. Merge the changeset + publish workflows to `master`.
-4. Pending changesets bump `pi-pstack` to `0.7.0` and `pi-quiet` to `0.4.2` in the first Version PR. The six personal packages stay at `0.0.0` and are not tagged.
-5. After the Version PR merges, confirm each tag's **Publish package** run, npm page, and:
+1. Merge the changeset + publish workflows to `master`.
+2. Run `./scripts/setup-release-secrets.sh` (creates both tokens, sets both repo secrets, stores them in Agent Vault).
+3. Pending changesets bump `pi-pstack` to `0.7.0` and `pi-quiet` to `0.4.2` in the first Version PR. The six personal packages stay at `0.0.0` and are not tagged.
+4. After the Version PR merges, confirm each tag's **Publish package** run, npm page, and:
 
 ```bash
 pi install npm:@whamp/pi-quiet
 ```
 
-6. Later releases use changesets + Version PR only.
+5. Later releases use changesets + Version PR only.
 
 ## Pre-publish checklist (still useful for manual cuts)
 
