@@ -2,9 +2,10 @@ import { existsSync, lstatSync, mkdirSync, readFileSync, renameSync, unlinkSync,
 import { homedir } from "node:os";
 import { basename, dirname, join } from "node:path";
 import { getAgentDir } from "@earendil-works/pi-coding-agent";
+import type { AgentVaultLocation } from "./agent-vault-access.ts";
 
 /** Everything the extension can be configured with, all of it optional on disk. */
-export interface JevPrunerConfig {
+export interface JevPrunerConfig extends AgentVaultLocation {
 	/** When false, tool output is never inspected. */
 	enabled: boolean;
 	/** Estimated token count above which output is worth pruning. */
@@ -19,8 +20,6 @@ export interface JevPrunerConfig {
 	maxScoringRequests: number;
 	/** Jev model name. */
 	model: string;
-	/** Agent Vault forward proxy that attaches the TypeSafe credential. */
-	proxyUrl: string;
 }
 
 export const CONFIG_FILENAME = "jev-pruner.json";
@@ -42,6 +41,9 @@ export function defaultJevPrunerConfig(): JevPrunerConfig {
 		maxScoringRequests: 8,
 		model: "jev-latest",
 		proxyUrl: DEFAULT_PROXY_URL,
+		passVaultName: "",
+		passItemTitle: "",
+		agentVaultSshTarget: "",
 	};
 }
 
@@ -66,6 +68,19 @@ function numberField(raw: Readonly<Record<string, unknown>>, key: string, fallba
 function stringField(raw: Readonly<Record<string, unknown>>, key: string, fallback: string): string {
 	const value = raw[key];
 	return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+/**
+ * Reads a field whose empty value is meaningful, such as an Agent Vault location that switches a
+ * lookup off. Only a non-string falls back.
+ */
+function passthroughField(
+	raw: Readonly<Record<string, unknown>>,
+	key: string,
+	fallback: string,
+): string {
+	const value = raw[key];
+	return typeof value === "string" ? value : fallback;
 }
 
 /**
@@ -95,6 +110,9 @@ export function parseJevPrunerConfig(text: string): JevPrunerConfig {
 		maxScoringRequests: Math.floor(numberField(raw, "maxScoringRequests", defaults.maxScoringRequests, 1, 64)),
 		model: stringField(raw, "model", defaults.model),
 		proxyUrl: stringField(raw, "proxyUrl", defaults.proxyUrl),
+		passVaultName: passthroughField(raw, "passVaultName", defaults.passVaultName),
+		passItemTitle: passthroughField(raw, "passItemTitle", defaults.passItemTitle),
+		agentVaultSshTarget: passthroughField(raw, "agentVaultSshTarget", defaults.agentVaultSshTarget),
 	};
 }
 

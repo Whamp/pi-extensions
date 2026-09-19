@@ -39,7 +39,7 @@ Resolution order:
 
 | Value | Sources, in order |
 | --- | --- |
-| Proxy token | `AGENT_VAULT_TOKEN`, then a Proton Pass item via `pass-cli` (vault `Agent Secrets`, item naming the host and agent) |
+| Proxy token | `AGENT_VAULT_TOKEN`, then the configured Proton Pass item via `pass-cli` |
 | Root CA | `NODE_EXTRA_CA_CERTS` / `SSL_CERT_FILE` / `CURL_CA_BUNDLE`, then `~/.agent-vault/mitm-ca.pem`, then a cached copy, then `ssh <agent-vault-host> 'docker exec Agent-Vault agent-vault ca fetch'` (cached to `~/.pi/agent/extensions/jev-pruner-agent-vault-ca.pem`) |
 | Proxy URL | `proxyUrl` from the config file; defaults to `http://127.0.0.1:14322` |
 
@@ -71,9 +71,20 @@ disabling the extension.
 	"maxStateTokens": 25000,
 	"maxScoringRequests": 8,
 	"model": "jev-latest",
-	"proxyUrl": "http://127.0.0.1:14322"
+	"proxyUrl": "http://127.0.0.1:14322",
+	"passVaultName": "Secrets",
+	"passItemTitle": "vault-host Agent Vault agent-token",
+	"agentVaultSshTarget": "root@vault-host"
 }
 ```
+
+The three Agent Vault fields are the only ones that describe your setup rather
+than Jev's behaviour, and each is off when empty:
+
+| Field | Effect when set | Effect when empty |
+| --- | --- | --- |
+| `passVaultName` + `passItemTitle` | `pass-cli` reads the proxy token from that Proton Pass item | the proxy token must come from `AGENT_VAULT_TOKEN` |
+| `agentVaultSshTarget` | `ssh <target> docker exec Agent-Vault agent-vault ca fetch` supplies and caches the root CA | the root CA must come from the environment or the cache |
 
 `/jev-pruner` prints the active configuration and what happened to the last
 large output; `/jev-pruner on` and `/jev-pruner off` toggle pruning and save it.

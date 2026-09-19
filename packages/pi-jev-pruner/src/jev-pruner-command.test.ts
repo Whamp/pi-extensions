@@ -109,6 +109,47 @@ describe("formatJevPrunerStatus credentials", () => {
 		});
 		assert.match(text, /credentials: no Agent Vault root CA/);
 	});
+
+	it("names the unconfigured lookups when nothing is set up yet", () => {
+		const config = defaultJevPrunerConfig();
+		const tokenText = formatJevPrunerStatus({
+			config,
+			configPath: "/tmp/config.json",
+			lastRun: undefined,
+			accessFailure: "no-proxy-token",
+		});
+		assert.match(tokenText, /configure passVaultName and passItemTitle/);
+		const caText = formatJevPrunerStatus({
+			config,
+			configPath: "/tmp/config.json",
+			lastRun: undefined,
+			accessFailure: "no-root-ca",
+		});
+		assert.match(caText, /configure agentVaultSshTarget/);
+	});
+
+	it("names the configured lookups when they are set up", () => {
+		const config = {
+			...defaultJevPrunerConfig(),
+			passVaultName: "Secrets",
+			passItemTitle: "vault-host Agent Vault agent-token",
+			agentVaultSshTarget: "root@vault-host",
+		};
+		const tokenText = formatJevPrunerStatus({
+			config,
+			configPath: "/tmp/config.json",
+			lastRun: undefined,
+			accessFailure: "no-proxy-token",
+		});
+		assert.match(tokenText, /unlock the Proton Pass item "vault-host Agent Vault agent-token"/);
+		const caText = formatJevPrunerStatus({
+			config,
+			configPath: "/tmp/config.json",
+			lastRun: undefined,
+			accessFailure: "no-root-ca",
+		});
+		assert.match(caText, /allow ssh root@vault-host to fetch it/);
+	});
 });
 
 describe("formatJevPrunerHelp", () => {

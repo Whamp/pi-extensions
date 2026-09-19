@@ -83,7 +83,7 @@ function statusText(result: BashOutputPruneResult): string | undefined {
 
 /** Builds the runtime that talks to the operating system and to Agent Vault. */
 export function createJevPrunerRuntime(pi: ExtensionAPI): JevPrunerRuntime {
-	const proxyUrl = loadJevPrunerConfig().proxyUrl;
+	const location = loadJevPrunerConfig();
 	const caCachePath = jevPrunerCaCachePath();
 	let accessFailure: AgentVaultUnavailableReason | undefined;
 	let resolved: ResolvedDispatcher | undefined;
@@ -120,7 +120,7 @@ export function createJevPrunerRuntime(pi: ExtensionAPI): JevPrunerRuntime {
 			if (resolved === undefined || resolved.validUntilMs <= now) {
 				let dispatcher: ResolvedDispatcher["dispatcher"];
 				try {
-					const outcome = await resolveAgentVaultAccess(probe, proxyUrl, caCachePath);
+					const outcome = await resolveAgentVaultAccess(probe, location, caCachePath);
 					if (outcome.kind === "resolved") {
 						dispatcher = createAgentVaultDispatcher(outcome.access);
 						accessFailure = undefined;

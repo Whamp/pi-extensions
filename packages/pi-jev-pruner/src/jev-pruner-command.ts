@@ -61,13 +61,33 @@ export interface JevPrunerStatusInput {
 }
 
 
-const ACCESS_FAILURE_TEXT: Record<AgentVaultUnavailableReason, string> = {
-	"no-proxy-token":
-		"no Agent Vault proxy token: set AGENT_VAULT_TOKEN, or let pass-cli read the pi-zai-pilot item from the Agent Secrets vault",
-	"no-root-ca":
-		"no Agent Vault root CA: set NODE_EXTRA_CA_CERTS, or allow ssh root@endurance to fetch it",
-	"dispatcher-unavailable": "could not build the Agent Vault proxy client",
-};
+/**
+ * Names the repair for each way Agent Vault access can fail.
+ *
+ * A configured lookup is named, because that is the one the operator expects to work; an
+ * unconfigured one points at the configuration field that would enable it.
+ */
+function accessFailureText(
+	reason: AgentVaultUnavailableReason,
+	config: JevPrunerConfig,
+): string {
+	switch (reason) {
+		case "no-proxy-token":
+			return config.passItemTitle.length > 0
+				? `no Agent Vault proxy token: set AGENT_VAULT_TOKEN, or unlock the Proton Pass item "${config.passItemTitle}"`
+				: "no Agent Vault proxy token: set AGENT_VAULT_TOKEN, or configure passVaultName and passItemTitle";
+		case "no-root-ca":
+			return config.agentVaultSshTarget.length > 0
+				? `no Agent Vault root CA: set NODE_EXTRA_CA_CERTS, or allow ssh ${config.agentVaultSshTarget} to fetch it`
+				: "no Agent Vault root CA: set NODE_EXTRA_CA_CERTS, or configure agentVaultSshTarget";
+		case "dispatcher-unavailable":
+			return "could not build the Agent Vault proxy client";
+		default: {
+			const exhaustive: never = reason;
+			return exhaustive;
+		}
+	}
+}
 
 function describeOutcome(lastRun: JevPrunerLastRun | undefined): string {
 	if (lastRun === undefined) {
@@ -98,7 +118,7 @@ export function formatJevPrunerStatus(input: JevPrunerStatusInput): string {
 		`proxy: ${config.proxyUrl}`,
 		accessFailure === undefined
 			? "credentials: resolved"
-			: `credentials: ${ACCESS_FAILURE_TEXT[accessFailure]}`,
+			: `credentials: ${accessFailureText(accessFailure, config)}`,
 		describeOutcome(lastRun),
 	].join("\n");
 }

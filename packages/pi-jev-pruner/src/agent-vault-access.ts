@@ -49,12 +49,24 @@ export interface AgentVaultProbe {
 	): Promise<string | undefined>;
 }
 
-/** Proton Pass item holding the proxy-only agent token that Agent Vault accepts. */
-export const AGENT_VAULT_TOKEN_ITEM_TITLE = "Endurance Agent Vault pi-zai-pilot";
-/** Proton Pass vault holding that item. */
-export const AGENT_VAULT_TOKEN_VAULT_NAME = "Agent Secrets";
-/** Host running the Agent Vault container, with the user that owns the Docker daemon. */
-export const AGENT_VAULT_SSH_TARGET = "root@endurance";
+/**
+ * Where Agent Vault lives and where its proxy token is kept.
+ *
+ * Every field is operator configuration, so no host, vault, or item name is baked into the code.
+ * An empty name disables the lookup that would have used it, which is how a machine with no Agent
+ * Vault keeps the proxy token in `AGENT_VAULT_TOKEN` alone.
+ */
+export interface AgentVaultLocation {
+	/** Forward-proxy URL, for example `http://127.0.0.1:14322`. */
+	proxyUrl: string;
+	/** Proton Pass vault holding the proxy-token item; empty skips the `pass-cli` lookup. */
+	passVaultName: string;
+	/** Proton Pass item holding the proxy token; empty skips the `pass-cli` lookup. */
+	passItemTitle: string;
+	/** SSH target for the Agent Vault host, for example `root@vault-host`; empty skips the fetch. */
+	agentVaultSshTarget: string;
+}
+
 /** Docker container name of the Agent Vault server. */
 export const AGENT_VAULT_CONTAINER = "Agent-Vault";
 
@@ -89,12 +101,18 @@ function proxyTokenFromPassCliJson(stdout: string): string | undefined {
 	return typeof password === "string" && password.length > 0 ? password : undefined;
 }
 
-async function readToken(probe: AgentVaultProbe): Promise<string | undefined> {
+async function readToken(
+	probe: AgentVaultProbe,
+	location: AgentVaultLocation,
+): Promise<string | undefined> {
 	for (const name of TOKEN_ENV_NAMES) {
 		const token = probe.readEnv(name);
 		if (token !== undefined && token.length > 0) {
 			return token;
 		}
+	}
+	if (location.passVaultName.length === 0 || location.passItemTitle.length === 0) {
+		return undefined;
 	}
 	const stdout = await probe.runCommand(
 		"pass-cli",
@@ -102,9 +120,9 @@ async function readToken(probe: AgentVaultProbe): Promise<string | undefined> {
 			"item",
 			"view",
 			"--vault-name",
-			AGENT_VAULT_TOKEN_VAULT_NAME,
+			location.passVaultName,
 			"--item-title",
-			AGENT_VAULT_TOKEN_ITEM_TITLE,
+			location.passItemTitle,
 			"--output",
 			"json",
 		],
@@ -115,6 +133,7 @@ async function readToken(probe: AgentVaultProbe): Promise<string | undefined> {
 
 async function readCertificateAuthority(
 	probe: AgentVaultProbe,
+	location: AgentVaultLocation,
 	caCachePath: string,
 ): Promise<string | undefined> {
 	for (const name of CA_ENV_NAMES) {
@@ -131,6 +150,9 @@ async function readCertificateAuthority(
 	if (cached !== undefined && cached.includes("BEGIN CERTIFICATE")) {
 		return cached;
 	}
+	if (location.agentVaultSshTarget.length === 0) {
+		return undefined;
+	}
 	const fetched = await probe.runCommand(
 		"ssh",
 		[
@@ -138,7 +160,7 @@ async function readCertificateAuthority(
 			"IdentitiesOnly=yes",
 			"-o",
 			"BatchMode=yes",
-			AGENT_VAULT_SSH_TARGET,
+			location.agentVaultSshTarget,
 			`docker exec ${AGENT_VAULT_CONTAINER} agent-vault ca fetch`,
 		],
 		COMMAND_TIMEOUT_MS,
@@ -153,24 +175,25 @@ async function readCertificateAuthority(
 /**
  * Resolves the proxy URL, proxy token, and root CA.
  *
- * An unavailable result carries the reason, because "credentials are not set up" is the most
- * common way for pruning to do nothing, and the status command is the only place that can say so.
- * Callers leave tool output untouched either way, so a missing token, an unreachable Agent Vault
- * host, or a locked Proton Pass session degrades to pi's own behaviour instead of failing a tool
- * call.
+ * The token comes from the environment or from the configured Proton Pass item, and the root CA
+ * from the environment, a cached copy, or the configured host. An unavailable result carries the
+ * reason, because "credentials are not set up" is the most common way for pruning to do nothing,
+ * and the status command is the only place that can say so. Callers leave tool output untouched
+ * either way, so a missing token, an unreachable Agent Vault host, or a locked Proton Pass session
+ * degrades to pi's own behaviour instead of failing a tool call.
  */
 export async function resolveAgentVaultAccess(
 	probe: AgentVaultProbe,
-	proxyUrl: string,
+	location: AgentVaultLocation,
 	caCachePath: string,
 ): Promise<AgentVaultAccessOutcome> {
-	const token = await readToken(probe);
+	const token = await readToken(probe, location);
 	if (token === undefined) {
 		return { kind: "unavailable", reason: "no-proxy-token" };
 	}
-	const caPem = await readCertificateAuthority(probe, caCachePath);
+	const caPem = await readCertificateAuthority(probe, location, caCachePath);
 	if (caPem === undefined) {
 		return { kind: "unavailable", reason: "no-root-ca" };
 	}
-	return { kind: "resolved", access: { proxyUrl, token, caPem } };
+	return { kind: "resolved", access: { proxyUrl: location.proxyUrl, token, caPem } };
 }

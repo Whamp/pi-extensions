@@ -4,6 +4,12 @@ import { resolveAgentVaultAccess } from "./agent-vault-access.ts";
 import type { AgentVaultProbe } from "./agent-vault-access.ts";
 
 const PROXY_URL = "http://127.0.0.1:14322";
+const LOCATION = {
+	proxyUrl: PROXY_URL,
+	passVaultName: "Secrets",
+	passItemTitle: "vault-host Agent Vault agent-token",
+	agentVaultSshTarget: "root@vault-host",
+};
 const CA_CACHE_PATH = "/home/will/.pi/agent/extensions/jev-pruner-agent-vault-ca.pem";
 const CA_PEM = "-----BEGIN CERTIFICATE-----\nMIIBfake\n-----END CERTIFICATE-----\n";
 const PASS_CLI_JSON = JSON.stringify({
@@ -51,7 +57,7 @@ describe("resolveAgentVaultAccess", () => {
 			files: { "/etc/av-ca.pem": CA_PEM },
 			commandResults: {},
 		});
-		const outcome = await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH);
+		const outcome = await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH);
 		assert.deepEqual(outcome, {
 			kind: "resolved",
 			access: { proxyUrl: PROXY_URL, token: "env-token", caPem: CA_PEM },
@@ -65,9 +71,9 @@ describe("resolveAgentVaultAccess", () => {
 			files: { CA_CACHE_PATH },
 			commandResults: { "pass-cli": PASS_CLI_JSON, ssh: CA_PEM },
 		});
-		const outcome = await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH);
+		const outcome = await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH);
 		assert.equal(outcome.kind === "resolved" ? outcome.access.token : undefined, "av_agt_token");
-		assert.match(commands[0] ?? "", /^pass-cli item view --vault-name Agent Secrets/);
+		assert.match(commands[0] ?? "", /^pass-cli item view --vault-name Secrets/);
 	});
 
 	it("uses the cached CA before reaching for SSH", async () => {
@@ -76,7 +82,7 @@ describe("resolveAgentVaultAccess", () => {
 			files: { [CA_CACHE_PATH]: CA_PEM },
 			commandResults: { ssh: CA_PEM },
 		});
-		const outcome = await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH);
+		const outcome = await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH);
 		assert.equal(outcome.kind === "resolved" ? outcome.access.caPem : undefined, CA_PEM);
 		assert.deepEqual(commands, []);
 	});
@@ -87,9 +93,9 @@ describe("resolveAgentVaultAccess", () => {
 			files: {},
 			commandResults: { ssh: CA_PEM },
 		});
-		const outcome = await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH);
+		const outcome = await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH);
 		assert.equal(outcome.kind === "resolved" ? outcome.access.caPem : undefined, CA_PEM);
-		assert.match(commands[0] ?? "", /^ssh .* root@endurance docker exec Agent-Vault agent-vault ca fetch$/);
+		assert.match(commands[0] ?? "", /^ssh .* root@vault-host docker exec Agent-Vault agent-vault ca fetch$/);
 		assert.equal(written[CA_CACHE_PATH], CA_PEM);
 	});
 
@@ -99,7 +105,7 @@ describe("resolveAgentVaultAccess", () => {
 			files: { [CA_CACHE_PATH]: CA_PEM },
 			commandResults: { "pass-cli": undefined },
 		});
-		assert.deepEqual(await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH), {
+		assert.deepEqual(await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH), {
 			kind: "unavailable",
 			reason: "no-proxy-token",
 		});
@@ -111,10 +117,40 @@ describe("resolveAgentVaultAccess", () => {
 			files: { [CA_CACHE_PATH]: CA_PEM },
 			commandResults: { "pass-cli": "not json" },
 		});
-		assert.deepEqual(await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH), {
+		assert.deepEqual(await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH), {
 			kind: "unavailable",
 			reason: "no-proxy-token",
 		});
+	});
+
+	it("skips the pass-cli lookup when no item is configured", async () => {
+		const { probe, commands } = fakeProbe({
+			env: {},
+			files: { [CA_CACHE_PATH]: CA_PEM },
+			commandResults: { "pass-cli": PASS_CLI_JSON },
+		});
+		const outcome = await resolveAgentVaultAccess(
+			probe,
+			{ ...LOCATION, passVaultName: "", passItemTitle: "" },
+			CA_CACHE_PATH,
+		);
+		assert.deepEqual(outcome, { kind: "unavailable", reason: "no-proxy-token" });
+		assert.deepEqual(commands, []);
+	});
+
+	it("skips the SSH fetch when no host is configured", async () => {
+		const { probe, commands } = fakeProbe({
+			env: { AGENT_VAULT_TOKEN: "token" },
+			files: {},
+			commandResults: { ssh: CA_PEM },
+		});
+		const outcome = await resolveAgentVaultAccess(
+			probe,
+			{ ...LOCATION, agentVaultSshTarget: "" },
+			CA_CACHE_PATH,
+		);
+		assert.deepEqual(outcome, { kind: "unavailable", reason: "no-root-ca" });
+		assert.deepEqual(commands, []);
 	});
 
 	it("gives up when no root CA can be found", async () => {
@@ -123,7 +159,7 @@ describe("resolveAgentVaultAccess", () => {
 			files: { [CA_CACHE_PATH]: "not a certificate" },
 			commandResults: { ssh: "permission denied" },
 		});
-		assert.deepEqual(await resolveAgentVaultAccess(probe, PROXY_URL, CA_CACHE_PATH), {
+		assert.deepEqual(await resolveAgentVaultAccess(probe, LOCATION, CA_CACHE_PATH), {
 			kind: "unavailable",
 			reason: "no-root-ca",
 		});

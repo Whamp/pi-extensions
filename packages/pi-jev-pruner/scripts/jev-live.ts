@@ -69,7 +69,7 @@ function buildInstallLog(): string {
 async function main(): Promise<void> {
 	const accessOutcome = await resolveAgentVaultAccess(
 		probe,
-		config.proxyUrl,
+		config,
 		`${homedir()}/.pi/agent/extensions/jev-pruner-agent-vault-ca.pem`,
 	);
 	if (accessOutcome.kind === "unavailable") {
