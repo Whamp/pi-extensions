@@ -1,5 +1,16 @@
 # @whamp/pi-pstack
 
+## 0.7.0
+
+### Minor Changes
+
+- 19916c1: Split pstack model configuration into 22 atomic roles with explicit cardinality. Add safe v1 migration, diagnostic status, effort-preserving setup, and workflow drift checks.
+
+### Patch Changes
+
+- ea0e609: Register ask_user_question in the pstack package and always offer a typed answer beside the listed options.
+- a67e333: Refill Orchestrate worker and verifier stages as each child settles instead of waiting on batch barriers.
+
 ## 0.6.0
 
 ### Minor Changes
