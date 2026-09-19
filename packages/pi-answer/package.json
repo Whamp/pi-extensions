@@ -1,0 +1,50 @@
+{
+  "name": "@zenspc/pi-answer",
+  "version": "0.0.0",
+  "description": "Interactive question extraction and answering for Pi",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Whamp/pi-extensions.git",
+    "directory": "packages/pi-answer"
+  },
+  "bugs": {
+    "url": "https://github.com/Whamp/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-answer#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "questions",
+    "tui"
+  ],
+  "files": [
+    "extensions/",
+    "!extensions/**/*.test.ts",
+    "!extensions/**/*.test.mjs",
+    "README.md",
+    "LICENSE"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.85.1"
+  },
+  "pi": {
+    "extensions": [
+      "./extensions/answer/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "node --experimental-strip-types --test extensions/answer/*.test.ts",
+    "prepack": "cp --remove-destination ../../LICENSE LICENSE",
+    "postpack": "ln -sfn ../../LICENSE LICENSE"
+  }
+}
