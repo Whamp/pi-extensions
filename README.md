@@ -13,9 +13,12 @@ npm under `@whamp` once released.
 - [`@whamp/pi-todos`](./packages/pi-todos): file-based todo management.
 - [`@whamp/pi-tokps`](./packages/pi-tokps): assistant decode-speed tracking.
 - [`@whamp/pi-local-vllm-thinking-budget`](./packages/pi-local-vllm-thinking-budget): per-model thinking budgets for local vLLM models.
+- [`@whamp/pi-jev-pruner`](./packages/pi-jev-pruner): bash output pruned with TypeSafe Jev before the model reads it, ported from a Claude Code plugin.
 
-The root Pi manifest loads all eight packages, so one git install gets the full
+The root Pi manifest loads all nine packages, so one git install gets the full
 set. Each package also has its own manifest and can be installed alone.
+`pi-jev-pruner` stays inert until Agent Vault credentials exist; read its
+[README](./packages/pi-jev-pruner/README.md) before enabling it.
 
 ## Install
 

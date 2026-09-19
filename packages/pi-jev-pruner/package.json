@@ -1,0 +1,56 @@
+{
+	"name": "@whamp/pi-jev-pruner",
+	"version": "0.0.0",
+	"description": "Prune large bash output with TypeSafe Jev before it reaches the model.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Whamp/pi-extensions.git",
+		"directory": "packages/pi-jev-pruner"
+	},
+	"bugs": {
+		"url": "https://github.com/Whamp/pi-extensions/issues"
+	},
+	"homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-jev-pruner#readme",
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"jev",
+		"typesafe",
+		"context",
+		"output"
+	],
+	"files": [
+		"src/",
+		"!src/**/*.test.ts",
+		"README.md",
+		"LICENSE"
+	],
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": "*"
+	},
+	"dependencies": {
+		"undici": "^8.10.2"
+	},
+	"pi": {
+		"extensions": [
+			"./src/index.ts"
+		]
+	},
+	"scripts": {
+		"test": "tsc --noEmit && node --experimental-strip-types --test src/*.test.ts",
+		"typecheck": "tsc --noEmit",
+		"prepack": "cp --remove-destination ../../LICENSE LICENSE",
+		"postpack": "ln -sfn ../../LICENSE LICENSE"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "^0.85.1",
+		"@types/node": "^22.10.2",
+		"typescript": "^5.7.2"
+	}
+}
