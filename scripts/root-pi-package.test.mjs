@@ -19,6 +19,7 @@ const expectedPiManifest = {
     "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
     "./packages/pi-todos/extensions/todos/index.ts",
     "./packages/pi-tokps/extensions/tokps/index.ts",
+    "./packages/pi-jev-pruner/src/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
   subagents: {

@@ -2,12 +2,13 @@
 
 ## Layout
 
-This monorepo keeps eight independent Pi packages under `packages/`:
+This monorepo keeps nine independent Pi packages under `packages/`:
 
 ```text
 packages/
   pi-answer/
   pi-files/
+  pi-jev-pruner/
   pi-local-vllm-thinking-budget/
   pi-pstack/
   pi-quiet/
@@ -16,7 +17,7 @@ packages/
   pi-tokps/
 ```
 
-Each package declares its Pi entry point in `package.json`. The root manifest loads all eight; each package also works on its own.
+Each package declares its Pi entry point in `package.json`. The root manifest loads all nine; each package also works on its own.
 
 ## Local development
 
