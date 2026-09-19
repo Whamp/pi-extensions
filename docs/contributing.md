@@ -53,5 +53,6 @@ Path installs are not copied. After you edit an installed package, restart Pi or
 - `package.json` must include `keywords: ["pi-package"]`.
 - Declare Pi resources under the `pi` key.
 - List Pi runtime packages as peer dependencies with `"*"`.
+- Declare a third-party runtime dependency in the package **and** in the root `dependencies` with the same range. A git install runs `npm install` at the repository root only, so a dependency the root omits fails to load in every session. `scripts/root-pi-package.test.mjs` enforces this.
 - Limit npm tarballs to runtime files, `README.md`, `package.json`, and `LICENSE` plus any required third-party notices.
 - Use changesets and package tags for releases. New packages stay at `0.0.0` until a changeset bump. Read the [publishing guide](./publishing.md).

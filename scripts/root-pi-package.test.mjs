@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
@@ -26,6 +26,53 @@ const expectedPiManifest = {
     agents: ["./packages/pi-pstack/agents"],
   },
 };
+
+// Pi provides these itself, so packages list them instead of installing them.
+const piBundledPackages = new Set([
+  "@earendil-works/pi-ai",
+  "@earendil-works/pi-agent-core",
+  "@earendil-works/pi-coding-agent",
+  "@earendil-works/pi-tui",
+  "typebox",
+]);
+
+describe("package runtime dependencies", () => {
+  it("declares every third-party runtime dependency in the root install surface", () => {
+    // A git install runs npm install in this directory only, so a package's
+    // third-party dependency resolves only when the root declares it too.
+    const rootDependencies = packageJson.dependencies ?? {};
+    const packageNames = readdirSync(join(repositoryRoot, "packages"), {
+      withFileTypes: true,
+    })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort();
+
+    assert.ok(packageNames.length > 0, "no packages found to check");
+
+    for (const packageName of packageNames) {
+      const manifest = JSON.parse(
+        readFileSync(
+          join(repositoryRoot, "packages", packageName, "package.json"),
+          "utf8",
+        ),
+      );
+
+      for (const [dependency, range] of Object.entries(
+        manifest.dependencies ?? {},
+      )) {
+        if (piBundledPackages.has(dependency)) {
+          continue;
+        }
+        assert.equal(
+          rootDependencies[dependency],
+          range,
+          `packages/${packageName} needs ${dependency}@${range}, but the root dependencies say ${rootDependencies[dependency] ?? "nothing"}`,
+        );
+      }
+    }
+  });
+});
 
 describe("root Pi package", () => {
   it("advertises every package extension and all pi-pstack resources", () => {
