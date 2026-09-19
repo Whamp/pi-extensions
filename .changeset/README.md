@@ -11,3 +11,6 @@ Pick the packages that changed, the bump type (patch / minor / major), and a sho
 A **Version packages** PR is opened automatically on `master` when pending changesets exist.
 Merging that PR bumps versions and writes changelogs.
 Tags and npm publish are handled separately (see [docs/publishing.md](../docs/publishing.md)).
+
+New packages start at `0.0.0`. That version is never tagged or published;
+the first changeset bump releases the package.

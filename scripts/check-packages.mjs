@@ -60,8 +60,8 @@ for (const name of packageNames) {
     continue;
   }
 
-  if (!pkg.name?.startsWith("@zenspc/")) {
-    fail(`${name}: package name must use @zenspc scope (got ${pkg.name})`);
+  if (!pkg.name?.startsWith("@whamp/")) {
+    fail(`${name}: package name must use @whamp scope (got ${pkg.name})`);
   }
 
   if (!Array.isArray(pkg.keywords) || !pkg.keywords.includes("pi-package")) {

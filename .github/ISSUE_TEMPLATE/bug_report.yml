@@ -9,8 +9,14 @@ body:
       label: Package
       description: Which package is affected?
       options:
+        - pi-answer
+        - pi-files
+        - pi-local-vllm-thinking-budget
         - pi-pstack
         - pi-quiet
+        - pi-session-breakdown
+        - pi-todos
+        - pi-tokps
         - monorepo
     validations:
       required: true

@@ -60,7 +60,7 @@ representative at an online or offline event.
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
 reported to the community leaders responsible for enforcement by contacting
-[@dhairyaar](https://github.com/dhairyaar) on GitHub (private message
+[@Whamp](https://github.com/Whamp) on GitHub (private message
 or private vulnerability reporting where appropriate).
 
 All complaints will be reviewed and investigated promptly and fairly.

@@ -2,7 +2,7 @@
 
 ## Layout
 
-This fork keeps eight independent Pi packages under `packages/`:
+This monorepo keeps eight independent Pi packages under `packages/`:
 
 ```text
 packages/
@@ -16,7 +16,7 @@ packages/
   pi-tokps/
 ```
 
-Each package declares its Pi entry point in `package.json`. The six personal extensions are separate packages so global settings can load them from a local checkout without enabling unrelated resources.
+Each package declares its Pi entry point in `package.json`. The root manifest loads all eight; each package also works on its own.
 
 ## Local development
 
@@ -40,7 +40,7 @@ Path installs are not copied. After you edit an installed package, restart Pi or
 
 1. Keep the change inside the affected package.
 2. Update the package README when user-facing behavior changes.
-3. Run `pnpm --filter @zenspc/<name> test` when the package has tests.
+3. Run `pnpm --filter @whamp/<name> test` when the package has tests.
 4. Run `pnpm check`.
 5. Run `pnpm test`.
 6. Smoke test with `pi -e ./packages/<name>` when extension behavior changes.
@@ -53,4 +53,4 @@ Path installs are not copied. After you edit an installed package, restart Pi or
 - Declare Pi resources under the `pi` key.
 - List Pi runtime packages as peer dependencies with `"*"`.
 - Limit npm tarballs to runtime files, `README.md`, `package.json`, and `LICENSE` plus any required third-party notices.
-- Use changesets and package tags for releases. Read the [publishing guide](./publishing.md).
+- Use changesets and package tags for releases. New packages stay at `0.0.0` until a changeset bump. Read the [publishing guide](./publishing.md).

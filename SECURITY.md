@@ -2,10 +2,8 @@
 
 ## Supported versions
 
-This personal fork supports the current versions on its default branch for:
-
-- `@zenspc/pi-pstack`
-- `@zenspc/pi-quiet`
+This repository supports the current versions on its default branch for the
+packages published from it (`@whamp/*`).
 
 Older revisions do not receive backports unless a release note says otherwise.
 
@@ -31,7 +29,7 @@ If a published package version is broken or unsafe, publish a fixed version.
 Npm limits unpublishing after a short window. Deprecate the bad version with:
 
 ```bash
-npm deprecate @zenspc/<pkg>@<ver> "reason; use @zenspc/<pkg>@X.Y.Z"
+npm deprecate @whamp/<pkg>@<ver> "reason; use @whamp/<pkg>@X.Y.Z"
 ```
 
 If a package leaked tokens or secrets, rotate the credentials and report the

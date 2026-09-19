@@ -1,4 +1,4 @@
-# @zenspc/pi-pstack
+# @whamp/pi-pstack
 
 ## 0.6.0
 

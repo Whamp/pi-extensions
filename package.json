@@ -1,14 +1,14 @@
 {
   "name": "pi-extensions",
   "private": true,
-  "description": "Whamp fork of Will's Pi coding agent extensions",
+  "description": "Will Hampson's Pi coding agent extensions: pstack, quiet, and personal packages",
   "packageManager": "pnpm@9.15.0",
   "keywords": [
     "pi-package"
   ],
   "scripts": {
     "check": "node scripts/check-packages.mjs",
-    "test": "pnpm --filter @zenspc/pi-pstack test && pnpm --filter @zenspc/pi-quiet test && pnpm --filter @zenspc/pi-answer test && pnpm --filter @zenspc/pi-files test && pnpm --filter @zenspc/pi-session-breakdown test && pnpm --filter @zenspc/pi-todos test && pnpm --filter @zenspc/pi-tokps test && node --test scripts/*.test.mjs",
+    "test": "pnpm -r run test && node --test scripts/*.test.mjs",
     "test:local": "node scripts/check-packages.mjs && echo \"Try: pi -e ./packages/<name>\"",
     "changeset": "changeset",
     "version-packages": "changeset version",
@@ -21,7 +21,13 @@
   "pi": {
     "extensions": [
       "./packages/pi-quiet/src/index.ts",
-      "./packages/pi-pstack/extensions/pstack/index.ts"
+      "./packages/pi-pstack/extensions/pstack/index.ts",
+      "./packages/pi-answer/extensions/answer/index.ts",
+      "./packages/pi-files/extensions/files/index.ts",
+      "./packages/pi-local-vllm-thinking-budget/extensions/local-vllm-thinking-budget/index.ts",
+      "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
+      "./packages/pi-todos/extensions/todos/index.ts",
+      "./packages/pi-tokps/extensions/tokps/index.ts"
     ],
     "skills": [
       "./packages/pi-pstack/skills"

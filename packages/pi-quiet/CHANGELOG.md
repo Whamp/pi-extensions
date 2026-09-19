@@ -1,4 +1,4 @@
-# @zenspc/pi-quiet
+# @whamp/pi-quiet
 
 ## 0.4.1
 

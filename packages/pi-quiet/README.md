@@ -1,4 +1,4 @@
-# @zenspc/pi-quiet
+# @whamp/pi-quiet
 
 Quiet Display for the [Pi coding agent](https://pi.dev): verb-first dense rows for tool activity, so new (and tired) users are not drowned in tool chrome and stdout.
 
@@ -7,7 +7,7 @@ Once installed, **Quiet Display is on by default**. Turn it off anytime with `/q
 ## Install
 
 ```bash
-pi install npm:@zenspc/pi-quiet
+pi install npm:@whamp/pi-quiet
 ```
 
 Local development from this monorepo:

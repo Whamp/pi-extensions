@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag, e.g. @zenspc/pi-quiet@0.1.0"
+        description: "Release tag, e.g. @whamp/pi-quiet@0.1.0"
         required: true
         type: string
       dry_run:
@@ -28,10 +28,10 @@ jobs:
   publish:
     name: npm publish + GitHub Release
     runs-on: ubuntu-latest
-    # Tag filter: only @zenspc/<pkg>@<semver> (broad tags: ** because @ in tag globs is unreliable)
+    # Tag filter: only @whamp/<pkg>@<semver> (broad tags: ** because @ in tag globs is unreliable)
     if: >-
       github.event_name == 'workflow_dispatch' ||
-      startsWith(github.ref, 'refs/tags/@zenspc/')
+      startsWith(github.ref, 'refs/tags/@whamp/')
     steps:
       - name: Checkout
         uses: actions/checkout@v4

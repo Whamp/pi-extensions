@@ -1,4 +1,4 @@
-# @zenspc/pi-local-vllm-thinking-budget
+# @whamp/pi-local-vllm-thinking-budget
 
 Sets a per-request `thinking_token_budget` for local vLLM reasoning models. The extension maps Pi's current thinking level to the `thinkingBudgets` configured on the selected model.
 

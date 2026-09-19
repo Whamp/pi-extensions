@@ -1,55 +1,65 @@
 # Whamp Pi extensions
 
-This personal fork collects Will's Pi extensions in one monorepo for local path-based loading.
+Will Hampson's Pi coding agent extensions, kept in one monorepo and published to
+npm under `@whamp` once released.
 
 ## Packages
 
-- [`@zenspc/pi-pstack`](./packages/pi-pstack): agent workflows, skills, and subagents.
-- [`@zenspc/pi-quiet`](./packages/pi-quiet): dense tool activity rendering.
-- [`@zenspc/pi-answer`](./packages/pi-answer): interactive question extraction and answering.
-- [`@zenspc/pi-files`](./packages/pi-files): file browsing and graphical diff actions.
-- [`@zenspc/pi-session-breakdown`](./packages/pi-session-breakdown): read-only session usage analytics.
-- [`@zenspc/pi-todos`](./packages/pi-todos): file-based todo management.
-- [`@zenspc/pi-tokps`](./packages/pi-tokps): assistant decode-speed tracking.
-- [`@zenspc/pi-local-vllm-thinking-budget`](./packages/pi-local-vllm-thinking-budget): per-model thinking budgets for local vLLM models.
+- [`@whamp/pi-pstack`](./packages/pi-pstack): agent workflows, skills, and subagents ported from the Cursor pstack plugin.
+- [`@whamp/pi-quiet`](./packages/pi-quiet): dense tool activity rendering.
+- [`@whamp/pi-answer`](./packages/pi-answer): interactive question extraction and answering.
+- [`@whamp/pi-files`](./packages/pi-files): file browsing and graphical diff actions.
+- [`@whamp/pi-session-breakdown`](./packages/pi-session-breakdown): read-only session usage analytics.
+- [`@whamp/pi-todos`](./packages/pi-todos): file-based todo management.
+- [`@whamp/pi-tokps`](./packages/pi-tokps): assistant decode-speed tracking.
+- [`@whamp/pi-local-vllm-thinking-budget`](./packages/pi-local-vllm-thinking-budget): per-model thinking budgets for local vLLM models.
 
-The root Pi manifest loads `pi-pstack` and `pi-quiet`. The six personal extensions have separate package manifests so they can be enabled independently from a checkout.
+The root Pi manifest loads all eight packages, so one git install gets the full
+set. Each package also has its own manifest and can be installed alone.
 
 ## Install
 
-Install the root package directly from GitHub:
+Install everything from the repository:
 
 ```bash
 pi install git:github.com/Whamp/pi-extensions
 ```
 
-To enable an individual package for one run:
+Install one released package from npm:
+
+```bash
+pi install npm:@whamp/pi-pstack
+```
+
+Run a package from a checkout without installing it:
 
 ```bash
 pi -e ./packages/pi-answer
 ```
 
-Use the `packages` setting with each package directory to load the six personal extensions from a local checkout. The PR description contains the complete settings snippet.
+Path installs are not copied. After you edit an installed package, restart Pi or
+run `/reload`.
 
 ## Develop from a checkout
-
-Clone the fork and install its workspace dependencies:
 
 ```bash
 git clone https://github.com/Whamp/pi-extensions.git
 cd pi-extensions
 pnpm install --frozen-lockfile
-```
-
-Run the checks and tests from the repository root:
-
-```bash
 pnpm check
 pnpm test
 ```
 
-Read the [contributor guide](./docs/contributing.md) for package commands. The [publishing guide](./docs/publishing.md) documents the inherited release process.
+Read the [contributor guide](./docs/contributing.md) for package commands and the
+[publishing guide](./docs/publishing.md) for the release train and the
+`scripts/setup-release-secrets.sh` token setup.
 
-## Upstream and license
+## Provenance and license
 
-This repository preserves the history and MIT license of [zenspc/pi-extensions](https://github.com/zenspc/pi-extensions). Read [LICENSE](./LICENSE) for the license terms.
+The repository began as a fork of
+[zenspc/pi-extensions](https://github.com/zenspc/pi-extensions) and keeps that
+history and its MIT license. `pi-pstack` is a port of the Cursor pstack plugin
+by Lauren Tan (`packages/pi-pstack/LICENSE`). `pi-files` and
+`pi-session-breakdown` adapt `mitsuhiko/agent-stuff` under Apache-2.0; their
+provenance notices ship inside those packages. Read [LICENSE](./LICENSE) for the
+license terms.

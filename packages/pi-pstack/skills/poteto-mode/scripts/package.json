@@ -1,5 +1,5 @@
 {
-  "name": "@zenspc/pi-pstack-tools",
+  "name": "@whamp/pi-pstack-tools",
   "private": true,
   "type": "module",
   "scripts": {
