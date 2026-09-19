@@ -1,6 +1,6 @@
 {
   "name": "@whamp/pi-local-vllm-thinking-budget",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Per-model thinking token budgets for local vLLM reasoning models in Pi",
   "type": "module",
   "license": "MIT",

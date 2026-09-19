@@ -1,6 +1,6 @@
 {
   "name": "@whamp/pi-answer",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Interactive question extraction and answering for Pi",
   "type": "module",
   "license": "MIT",

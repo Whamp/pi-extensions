@@ -1,6 +1,6 @@
 {
   "name": "@whamp/pi-files",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "File browser and diff actions for Pi",
   "type": "module",
   "license": "MIT",
