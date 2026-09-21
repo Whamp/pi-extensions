@@ -1,0 +1,59 @@
+{
+  "name": "@whamp/pi-btw",
+  "version": "0.2.0",
+  "description": "Ask tangential questions in a Pi overlay or branch into a detached Herdr tab.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Whamp/pi-extensions.git",
+    "directory": "packages/pi-btw"
+  },
+  "bugs": {
+    "url": "https://github.com/Whamp/pi-extensions/issues"
+  },
+  "homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-btw#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "keywords": [
+    "pi-package",
+    "pi-extension",
+    "btw",
+    "herdr",
+    "overlay",
+    "side-chat"
+  ],
+  "files": [
+    "src/",
+    "!src/**/*.test.ts",
+    "README.md",
+    "LICENSE",
+    "LICENSES/",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "scripts": {
+    "test": "tsc --noEmit && node --experimental-strip-types --test src/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "prepack": "cp --remove-destination ../../LICENSE LICENSE",
+    "postpack": "ln -sfn ../../LICENSE LICENSE"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-ai": "^0.85.1",
+    "@earendil-works/pi-coding-agent": "^0.85.1",
+    "@earendil-works/pi-tui": "^0.85.1",
+    "@types/node": "^22.10.2",
+    "typescript": "^5.7.2"
+  }
+}

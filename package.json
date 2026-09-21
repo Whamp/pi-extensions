@@ -26,6 +26,7 @@
       "./packages/pi-quiet/src/index.ts",
       "./packages/pi-pstack/extensions/pstack/index.ts",
       "./packages/pi-answer/extensions/answer/index.ts",
+      "./packages/pi-btw/src/index.ts",
       "./packages/pi-files/extensions/files/index.ts",
       "./packages/pi-local-vllm-thinking-budget/extensions/local-vllm-thinking-budget/index.ts",
       "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
