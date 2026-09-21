@@ -8,6 +8,7 @@ npm under `@whamp` once released.
 - [`@whamp/pi-pstack`](./packages/pi-pstack): agent workflows, skills, and subagents ported from the Cursor pstack plugin.
 - [`@whamp/pi-quiet`](./packages/pi-quiet): dense tool activity rendering.
 - [`@whamp/pi-answer`](./packages/pi-answer): interactive question extraction and answering.
+- [`@whamp/pi-btw`](./packages/pi-btw): side conversations as an in-session overlay or a detached Herdr tab.
 - [`@whamp/pi-files`](./packages/pi-files): file browsing and graphical diff actions.
 - [`@whamp/pi-session-breakdown`](./packages/pi-session-breakdown): read-only session usage analytics.
 - [`@whamp/pi-todos`](./packages/pi-todos): file-based todo management.
@@ -15,7 +16,7 @@ npm under `@whamp` once released.
 - [`@whamp/pi-local-vllm-thinking-budget`](./packages/pi-local-vllm-thinking-budget): per-model thinking budgets for local vLLM models.
 - [`@whamp/pi-jev-pruner`](./packages/pi-jev-pruner): bash output pruned with TypeSafe Jev before the model reads it, ported from a Claude Code plugin.
 
-The root Pi manifest loads all nine packages, so one git install gets the full
+The root Pi manifest loads all ten packages, so one git install gets the full
 set. Each package also has its own manifest and can be installed alone.
 `pi-jev-pruner` stays inert until Agent Vault credentials exist; read its
 [README](./packages/pi-jev-pruner/README.md) before enabling it.
