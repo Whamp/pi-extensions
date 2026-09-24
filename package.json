@@ -3,6 +3,12 @@
   "private": true,
   "description": "Will Hampson's Pi coding agent extensions: pstack, quiet, and personal packages",
   "packageManager": "pnpm@9.15.0",
+  "pnpm": {
+    "overrides": {
+      "read-yaml-file@1.1.0>js-yaml": "3.15.2",
+      "@changesets/parse@0.4.3>js-yaml": "4.3.2"
+    }
+  },
   "keywords": [
     "pi-package"
   ],

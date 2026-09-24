@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "include": [
+    "src/enums.ts", "src/errors.ts", "src/types.ts", "src/prompt-profiles/types.ts", "src/prompt-profiles/prompt-catalog.ts",
+    "src/prompt-profiles/selectors.ts", "src/prompt-profiles/pi-prompts.ts", "src/config.ts", "src/prompts.ts", "src/store.ts", "src/sidekick/session.ts", "src/sidekick/sidekick-state-schema.ts", "src/sidekick/rpc.ts", "src/sidekick/runner.ts",
+    "test/sidekick-runner-test-utils.ts", "src/prompt-profiles/selectors.test.ts", "src/prompt-profiles/prompt-catalog.test.ts", "src/prompt-profiles/pi-prompts.test.ts", "src/sidekick/rpc.test.ts", "src/sidekick/runner.test.ts", "src/sidekick/session.test.ts", "src/sidekick/sidekick-state-schema.test.ts"
+  ]
+}

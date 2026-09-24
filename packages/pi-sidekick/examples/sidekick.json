@@ -1,0 +1,13 @@
+{
+  "version": 2,
+  "sidekick": null,
+  "thinking": "medium",
+  "leadProfile": "auto",
+  "broadExploration": false,
+  "leadRenderedBrowser": false,
+  "sidekickPreferExec": false,
+  "enabled": false,
+  "sidekickExtensions": [],
+  "sidekickSkills": [],
+  "tools": ["read", "write", "edit", "bash", "grep", "find", "ls"]
+}
