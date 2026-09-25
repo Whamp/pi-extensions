@@ -26,6 +26,7 @@
     "side-chat"
   ],
   "files": [
+    "extensions/",
     "src/",
     "!src/**/*.test.ts",
     "README.md",
@@ -40,7 +41,7 @@
   },
   "pi": {
     "extensions": [
-      "./src/index.ts"
+      "./extensions/btw/index.ts"
     ]
   },
   "scripts": {

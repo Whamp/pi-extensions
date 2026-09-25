@@ -26,6 +26,7 @@
 		"tui"
 	],
 	"files": [
+		"extensions/",
 		"src/",
 		"!src/**/*.test.ts",
 		"README.md",
@@ -38,7 +39,7 @@
 	},
 	"pi": {
 		"extensions": [
-			"./src/index.ts"
+			"./extensions/quiet/index.ts"
 		]
 	},
 	"scripts": {

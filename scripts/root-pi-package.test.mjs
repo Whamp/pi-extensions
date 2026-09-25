@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
@@ -11,16 +11,16 @@ const packageJson = JSON.parse(
 
 const expectedPiManifest = {
   extensions: [
-    "./packages/pi-quiet/src/index.ts",
+    "./packages/pi-quiet/extensions/quiet/index.ts",
     "./packages/pi-pstack/extensions/pstack/index.ts",
     "./packages/pi-answer/extensions/answer/index.ts",
-    "./packages/pi-btw/src/index.ts",
+    "./packages/pi-btw/extensions/btw/index.ts",
     "./packages/pi-files/extensions/files/index.ts",
     "./packages/pi-local-vllm-thinking-budget/extensions/local-vllm-thinking-budget/index.ts",
     "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
     "./packages/pi-todos/extensions/todos/index.ts",
     "./packages/pi-tokps/extensions/tokps/index.ts",
-    "./packages/pi-jev-pruner/src/index.ts",
+    "./packages/pi-jev-pruner/extensions/jev-pruner/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
   subagents: {
@@ -76,6 +76,30 @@ describe("package runtime dependencies", () => {
 });
 
 describe("root Pi package", () => {
+  it("uses distinct, descriptive extension labels in pi config", () => {
+    const labels = packageJson.pi.extensions.map(
+      (path) => `${basename(dirname(path))}/${basename(path)}`,
+    );
+    assert.equal(new Set(labels).size, labels.length);
+    assert.equal(
+      labels.some((label) => label.startsWith("src/")),
+      false,
+    );
+  });
+
+  it("keeps root and child extension manifests aligned", () => {
+    for (const resourcePath of packageJson.pi.extensions) {
+      const [, , packageName, ...entryPath] = resourcePath.split("/");
+      const manifest = JSON.parse(
+        readFileSync(
+          join(repositoryRoot, "packages", packageName, "package.json"),
+          "utf8",
+        ),
+      );
+      assert.ok(manifest.pi.extensions.includes(`./${entryPath.join("/")}`));
+    }
+  });
+
   it("advertises every package extension and all pi-pstack resources", () => {
     assert.deepEqual(packageJson.pi, expectedPiManifest);
   });

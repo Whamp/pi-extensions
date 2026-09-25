@@ -26,6 +26,7 @@
 		"output"
 	],
 	"files": [
+		"extensions/",
 		"src/",
 		"!src/**/*.test.ts",
 		"README.md",
@@ -39,7 +40,7 @@
 	},
 	"pi": {
 		"extensions": [
-			"./src/index.ts"
+			"./extensions/jev-pruner/index.ts"
 		]
 	},
 	"scripts": {
