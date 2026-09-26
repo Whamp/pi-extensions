@@ -30,6 +30,8 @@ The parent resolves any ticket, chat, document, observability, error-tracker, or
 
 Launch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the three reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.
 
+Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.
+
 | Lens | `model` | Prompt template |
 |---|---|---|
 | Judgment | `reflect judgment reviewer` (default inherit-parent) | `references/judgment-reviewer.md` |

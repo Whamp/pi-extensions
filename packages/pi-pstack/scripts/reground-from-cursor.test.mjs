@@ -65,7 +65,7 @@ const PI_SYNCED_FILES = {
 
 const sandbox = mkdtempSync(join(tmpdir(), "pi-pstack-reground-"));
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const pinnedCallerGuidanceRoot = resolve(packageRoot, "fixtures/cursor-pstack-71ed0d1");
+const pinnedCallerGuidanceRoot = resolve(packageRoot, "fixtures/cursor-pstack-12d587d");
 const PINNED_CALLER_GUIDANCE_FILES = [
 	"skills/arena/SKILL.md",
 	"skills/how/SKILL.md",
@@ -584,6 +584,18 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		forbiddenCursor: ["agent-transcripts", "Don't glob across `~/.pi/agent/sessions/`"],
 	},
 	{
+		rel: "skills/show-me-your-work/SKILL.md",
+		cursor:
+			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path). Don't glob across `~/.cursor/projects/*/`. That reads unrelated private chats. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:",
+		requiredPi: [
+			"$PI_SESSION_FILE",
+			"~/.pi/agent/sessions/--<slug>--/",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+			"Walk this run's rows against what actually happened",
+		],
+		forbiddenCursor: ["agent-transcripts", "Don't glob across `~/.pi/agent/sessions/`"],
+	},
+	{
 		rel: "skills/poteto-mode/playbooks/session-pickup.md",
 		cursor:
 			"A local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path. Do not glob across `~/.cursor/projects/*/`, that crosses workspace boundaries and reads private chats from unrelated projects), a cloud-agent URL, or a pushed branch.",
@@ -838,6 +850,67 @@ const CALLER_GUIDANCE_CONCEPTS = [
 			"cloud default",
 			"Restacks run in cloud",
 		],
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		cursor: "Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explorer` line, default `grok-4.7-xhigh-fast`\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
+		requiredPi: [
+			"workflowScript",
+			"maxSubagentSpawnsPerRun: N + 1",
+			"`how explorers`",
+		],
+		forbiddenCursor: ["how explorer`", "readonly", "grok-4.7-xhigh-fast"],
+	},
+	{
+		rel: "skills/arena/SKILL.md",
+		cursor: "After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5.6-sol-max`, `grok-4.7-xhigh-fast`. Prefer a different model family from the parent's. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.",
+		requiredPi: [
+			"`arena judge pool`",
+			"async: true",
+			"Read the completed candidate artifacts while the judge runs",
+		],
+		forbiddenCursor: ["arena cross-judge pool", "readonly judge subagent", "claude-opus-5-5-max"],
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		cursor: 'Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the step 4 model, left unset for `auto` or `inherit-parent`. Use `environment: "local"` only when the worker needs access to something on the user\'s computer.',
+		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
+		forbiddenCursor: [
+			"Spawn all N workers in one message",
+			"environment:",
+			"run_in_background",
+		],
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		cursor: "One message, three `Task` calls, `subagent_type: generalPurpose`, with `model` set as below, agent mode (`readonly: false`). Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). Readonly strips MCPs.",
+		requiredPi: [
+			"workflowScript",
+			"maxSubagentSpawnsPerRun: 4",
+			'runs.run("synthesize-reviews",',
+		],
+		forbiddenCursor: ["Task` calls", "readonly"],
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		cursor: "Subagent config (each):\n- `subagent_type`: `generalPurpose`\n- `model`: the `why investigators` line, default `grok-4.7-xhigh-fast`\n- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.",
+		requiredPi: [
+			"Each investigator uses:",
+			"`why investigators`",
+			"instruct the investigator to inspect only",
+		],
+		forbiddenCursor: ["Subagent config", "subagent_type", "readonly", "grok-4.7-xhigh-fast"],
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		cursor: "Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` line in `~/.cursor/rules/pstack-models.mdc`, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. If the rule or that line is missing, use the table defaults.",
+		requiredPi: [
+			"workflowScript",
+			"maxSubagentSpawnsPerRun: N",
+			"interrogate reviewers",
+			"list from `~/.pi/agent/pstack/models.json` when present",
+		],
+		forbiddenCursor: ["using the Task tool", "pstack-models.mdc"],
 	},
 ];
 
