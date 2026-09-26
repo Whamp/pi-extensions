@@ -532,6 +532,84 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		forbiddenCursor: ["Task` calls", "readonly"],
 	},
 	{
+		rel: "skills/reflect/SKILL.md",
+		cursor:
+			"The parent finds its own transcript file before fanning out. The system prompt names the active workspace's `agent-transcripts/` directory. Use that path. Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.\n\n```bash\nls -t <agent-transcripts>/*.jsonl <agent-transcripts>/*/*.jsonl <agent-transcripts>/*/subagents/*.jsonl 2>/dev/null | head -10\n```\n\nThree transcript layouts: legacy flat (`<id>.jsonl`), current nested (`<id>/<id>.jsonl`), and subagent (`<parent>/subagents/<child>.jsonl`).\n\nFor each candidate, read the first JSONL line and check that `message.content[0].text` contains the conversation's opening user prompt. Take the matching path. If no path resolves, write a tight digest of the session and pass that instead.",
+		requiredPi: [
+			"$PI_SESSION_FILE",
+			"~/.pi/agent/sessions/--<slug>--/",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+		],
+		forbiddenCursor: [
+			"agent-transcripts",
+			"Do not glob across `~/.cursor/projects/*`",
+			"Do not glob across `~/.pi/agent/sessions/`",
+		],
+	},
+	{
+		rel: "skills/recall/SKILL.md",
+		cursor:
+			"Transcripts live at `~/.cursor/projects/<slug>/agent-transcripts/<uuid>/<uuid>.jsonl`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\" (so `/Users/you/proj` becomes `Users-you-proj`). Every line is one chat message.",
+		requiredPi: [
+			"~/.pi/agent/sessions/--<slug>--/",
+			"$PI_SESSION_FILE",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+		],
+		forbiddenCursor: ["agent-transcripts", "~/.cursor/projects/"],
+	},
+	{
+		rel: "skills/automate-me/SKILL.md",
+		cursor:
+			"Locate the active workspace's transcripts before fanning out. The system prompt names the workspace's `agent-transcripts/` directory. Use only that path. Don't glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+		requiredPi: [
+			"~/.pi/agent/sessions/--<slug>--/",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+		],
+		forbiddenCursor: [
+			"agent-transcripts",
+			"Don't glob across `~/.cursor/projects/*`",
+			"Don't glob across `~/.pi/agent/sessions/`",
+			"Do not glob across `~/.pi/agent/sessions/`",
+		],
+	},
+	{
+		rel: "skills/show-me-your-work/SKILL.md",
+		cursor:
+			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path). Don't glob across `~/.cursor/projects/*/`. That reads unrelated private chats. Walk the log against what actually happened:",
+		requiredPi: [
+			"$PI_SESSION_FILE",
+			"~/.pi/agent/sessions/--<slug>--/",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+		],
+		forbiddenCursor: ["agent-transcripts", "Don't glob across `~/.pi/agent/sessions/`"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/session-pickup.md",
+		cursor:
+			"A local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names the path. Do not glob across `~/.cursor/projects/*/`, that crosses workspace boundaries and reads private chats from unrelated projects), a cloud-agent URL, or a pushed branch.",
+		requiredPi: [
+			"~/.pi/agent/sessions/--<slug>--/",
+			"$PI_SESSION_FILE",
+			"an async run record",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+		],
+		forbiddenCursor: ["agent-transcripts", "cloud-agent URL"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/eval.md",
+		cursor:
+			"Read each candidate's local transcript under the active workspace's `agent-transcripts/` directory (the system prompt names this path). Do not glob across `~/.cursor/projects/*/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+		requiredPi: [
+			"~/.pi/agent/sessions/--<slug>--/",
+			"Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+		],
+		forbiddenCursor: [
+			"agent-transcripts",
+			"Do not glob across `~/.cursor/projects/*`",
+			"Do not glob across `~/.pi/agent/sessions/`",
+		],
+	},
+	{
 		rel: "skills/why/SKILL.md",
 		cursor: "Launch all matching investigators in a single message so they run concurrently. Don't ask one agent to cover multiple MCPs.",
 		requiredPi: [

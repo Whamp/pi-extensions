@@ -70,6 +70,27 @@ export const SEAMS = [
 		cursor: /~\/\.cursor\/rules\/pstack-models\.mdc/g,
 		pi: "~/.pi/agent/pstack/models.json",
 	},
+	// Transcript locations. Path shape borrowed from backnotprop/pstack Harness
+	// (https://github.com/backnotprop/pstack/blob/main/skills/poteto-mode/SKILL.md#harness)
+	// and adapted to Pi-only wording (`$PI_SESSION_FILE`, sibling-slug fence).
+	// The generic sessions-path seam used to rewrite
+	// "Do not glob across `~/.cursor/projects/*/`" into
+	// "Do not glob across `~/.pi/agent/sessions/`", which inverted the warning.
+	{
+		id: "cursor-transcript-file",
+		cursor: /~\/\.cursor\/projects\/<slug>\/agent-transcripts\/<uuid>\/<uuid>\.jsonl/g,
+		pi: "~/.pi/agent/sessions/--<slug>--/*.jsonl",
+	},
+	{
+		id: "no-glob-cursor-projects",
+		cursor: /Do not glob across `~\/\.cursor\/projects\/\*\/`/g,
+		pi: "Stay inside `~/.pi/agent/sessions/--<slug>--/`. Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+	},
+	{
+		id: "dont-glob-cursor-projects",
+		cursor: /Don't glob across `~\/\.cursor\/projects\/\*\/`/g,
+		pi: "Stay inside `~/.pi/agent/sessions/--<slug>--/`. Do not glob sibling slugs under `~/.pi/agent/sessions/`",
+	},
 	{
 		id: "sessions-path",
 		cursor: /~\/\.cursor\/projects\/[^`\s]*/g,
@@ -676,6 +697,48 @@ export function applyAtomicRoleTransforms(text, rel) {
 
 const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	{
+		rel: "skills/reflect/SKILL.md",
+		pattern:
+			/^The parent finds its own transcript file before fanning out\. The system prompt names the active workspace's `agent-transcripts\/` directory\. Use that path\. Do not glob across `~\/\.cursor\/projects\/\*\/`\. That crosses workspace boundaries and reads private chats from unrelated projects\.\n\n```bash\nls -t <agent-transcripts>\/\*\.jsonl <agent-transcripts>\/\*\/\*\.jsonl <agent-transcripts>\/\*\/subagents\/\*\.jsonl 2>\/dev\/null \| head -10\n```\n\nThree transcript layouts: legacy flat \(`<id>\.jsonl`\), current nested \(`<id>\/<id>\.jsonl`\), and subagent \(`<parent>\/subagents\/<child>\.jsonl`\)\.\n\nFor each candidate, read the first JSONL line and check that `message\.content\[0\]\.text` contains the conversation's opening user prompt\. Take the matching path\. If no path resolves, write a tight digest of the session and pass that instead\.$/m,
+		replacement:
+			"The parent finds its own transcript file before fanning out. Prefer `$PI_SESSION_FILE` for the current session. Workspace transcripts live at `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.\n\n```bash\nls -t ~/.pi/agent/sessions/--<slug>--/*.jsonl 2>/dev/null | head -10\n```\n\nEach file is JSONL. Confirm a candidate by finding the conversation's opening user prompt in its first user message. Take the matching path. If no path resolves, write a tight digest of the session and pass that instead.",
+	},
+	{
+		rel: "skills/recall/SKILL.md",
+		pattern:
+			/^Transcripts live at `~\/\.cursor\/projects\/<slug>\/agent-transcripts\/<uuid>\/<uuid>\.jsonl`, where `<slug>` is the workspace path with the leading slash dropped and each "\/" turned into "-" \(so `\/Users\/you\/proj` becomes `Users-you-proj`\)\. Every line is one chat message\.$/m,
+		replacement:
+			"Transcripts live at `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\" (so `/Users/you/proj` becomes `Users-you-proj`). Prefer `$PI_SESSION_FILE` for the current session. Each file is JSONL. Stay inside that workspace directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`.",
+	},
+	{
+		rel: "skills/automate-me/SKILL.md",
+		pattern:
+			/^Locate the active workspace's transcripts before fanning out\. The system prompt names the workspace's `agent-transcripts\/` directory\. Use only that path\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That crosses workspace boundaries and reads private chats from unrelated projects\.$/m,
+		replacement:
+			"Locate the active workspace's transcripts before fanning out. Use `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+	},
+	{
+		rel: "skills/show-me-your-work/SKILL.md",
+		pattern:
+			/^At the end of the run, before handing back, check the log told the truth\. Read this run's transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\)\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That reads unrelated private chats\. Walk the log against what actually happened:$/m,
+		replacement:
+			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk the log against what actually happened:",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/session-pickup.md",
+		pattern:
+			/A local transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\. Do not glob across `~\/\.cursor\/projects\/\*\/`, that crosses workspace boundaries and reads private chats from unrelated projects\), a cloud-agent URL, or a pushed branch\./,
+		replacement:
+			"A local transcript under `~/.pi/agent/sessions/--<slug>--/` (prefer `$PI_SESSION_FILE` for the current session. `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`, that crosses workspace boundaries and reads private chats from unrelated projects), an async run record, or a pushed branch.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/eval.md",
+		pattern:
+			/Read each candidate's local transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names this path\)\. Do not glob across `~\/\.cursor\/projects\/\*\/`\. That crosses workspace boundaries and reads private chats from unrelated projects\./,
+		replacement:
+			"Read each candidate's local transcript under `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+	},
+	{
 		rel: "skills/no-comments/SKILL.md",
 		pattern:
 			/^1\. Spawn `Task` with `subagent_type: "Comment Sicko"`\. Pass the scope\. Do not restate its rules\.$/m,
@@ -1224,6 +1287,11 @@ export function assertNoCursorSeams(destRoot) {
 		if (text.includes("Task subagent")) leftover.push(`${rel}: Task subagent`);
 		if (text.includes("$HOME/.cursor")) leftover.push(`${rel}: $HOME/.cursor`);
 		if (text.includes("@cursor-skill")) leftover.push(`${rel}: @cursor-skill`);
+		if (text.includes("agent-transcripts")) leftover.push(`${rel}: agent-transcripts`);
+		if (/Do not glob across `~\/\.pi\/agent\/sessions\/`/.test(text))
+			leftover.push(`${rel}: inverted sessions glob`);
+		if (/Don't glob across `~\/\.pi\/agent\/sessions\/`/.test(text))
+			leftover.push(`${rel}: inverted sessions glob`);
 		if (/from \./.test(text)) leftover.push(`${rel}: from .`);
 		const parts = rel.split("/");
 		if (parts[parts.length - 1] !== "SKILL.md") continue;

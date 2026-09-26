@@ -59,9 +59,15 @@ Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pst
   The four Discoverable skills are `how`, `why`, `unslop`, and `typescript-best-practices`.
 - Slash commands are `/skill:<name>` instead of `/name`.
 - Subagent delegation uses pi-subagents. Launch one child with `subagent({ action: "execute", input: { agent, task } })`. Set `input.async: true` for background work. Run parallel or dependent children in one `workflowScript` with stable keys. This package does not ship the `subagent` tool.
-- Session transcripts live under `~/.pi/agent/sessions/` instead of `~/.cursor/projects/`. The active file is `$PI_SESSION_FILE`. Files are grouped by cwd slug (`--<cwd>--`, absolute cwd with `/` replaced by `-`).
+- Session transcripts live under `~/.pi/agent/sessions/--<slug>--/` instead of Cursor `agent-transcripts/`. The active file is `$PI_SESSION_FILE`. `<slug>` is the absolute cwd with the leading slash dropped and each `/` turned into `-`. Stay inside that workspace directory. Do not glob sibling slugs.
 - The benny automation pack is not ported; it depends on Cursor automations. Model roles live in `~/.pi/agent/pstack/models.json`, written by `/setup-pstack` and injected only when a role has a real model slug.
 - `make-bot-ui` is not ported. It is Cursor Grok Bot / routine webhook UI.
+
+## Related port
+
+[backnotprop/pstack](https://github.com/backnotprop/pstack) is Lauren Tan's standalone mirror of the same Cursor plugin (`npx skills add backnotprop/pstack`). Its `main` branch keeps Cursor wording and adds a [Harness](https://github.com/backnotprop/pstack/blob/main/skills/poteto-mode/SKILL.md#harness) table so one skill body can run in Claude Code, Codex, Pi, and others. This package is the Pi-native port: it rewrites those seams (`/skill:`, `models.json`, pi-subagents) instead of asking the agent to translate. The Pi session path in that Harness table is what this package now writes into skills. Do not install the mirror into Pi if you want this extension.
+
+See [MIRROR.md](https://github.com/backnotprop/pstack/blob/main/MIRROR.md) for the mirror's two-branch sync. This package uses `scripts/reground-from-cursor.mjs` instead.
 
 ## License
 
