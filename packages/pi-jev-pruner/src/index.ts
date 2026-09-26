@@ -40,6 +40,7 @@ import {
 	saveJevPrunerConfig,
 } from "./jev-pruner-config.ts";
 import { estimateOutputTokens } from "./output-token-estimate.ts";
+import { writeOutputArchive } from "./output-archive.ts";
 import { pruneOptionsFromConfig } from "./output-pruner.ts";
 import type { OutputPruneOptions } from "./output-pruner.ts";
 import { conversationTurnsFromSession } from "./session-history.ts";
@@ -189,7 +190,7 @@ export default function jevPrunerExtension(
 			},
 			{
 				readFileText: runtime.probe.readFile,
-				writeArchive: (target, text) => runtime.probe.writeFile(target.path, text),
+				writeArchive: (target, text) => writeOutputArchive(target, text, runtime.probe.writeFile),
 				asker,
 				now: Date.now,
 			},

@@ -1,4 +1,3 @@
-import { mkdir, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 
 /** Where the complete output of a pruned tool call can be read back. */
@@ -24,17 +23,20 @@ export function archivePathForToolCall(
 }
 
 /**
- * Writes the complete output next to a self-ignoring marker file.
+ * Writes the complete output next to a self-ignoring marker file, through the caller's file writer.
  *
  * The marker keeps the archive out of git without touching the repository's own ignore rules, and
  * a failed write is left to the caller: an archive that cannot be written means the dropped lines
  * would be unrecoverable, so the caller must abandon the prune instead of pruning anyway.
  */
-export async function writeOutputArchive(target: OutputArchiveTarget, text: string): Promise<void> {
+export async function writeOutputArchive(
+	target: OutputArchiveTarget,
+	text: string,
+	writeFile: (path: string, text: string) => Promise<void>,
+): Promise<void> {
 	const directory = dirname(target.path);
-	await mkdir(directory, { recursive: true, mode: 0o700 });
-	await writeFile(join(directory, ".gitignore"), "*\n", { mode: 0o600 });
-	await writeFile(target.path, text, { mode: 0o600 });
+	await writeFile(join(directory, ".gitignore"), "*\n");
+	await writeFile(target.path, text);
 }
 
 /**

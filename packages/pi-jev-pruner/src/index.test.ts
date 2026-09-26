@@ -30,6 +30,8 @@ interface Harness {
 	statuses: string[];
 	notices: string[];
 	agentDir: string;
+	/** Every probe.writeFile call, in order: the extension's observable file writes. */
+	writes: { path: string; text: string }[];
 }
 
 /** Builds the extension against a fake pi and a replaced runtime, in an isolated agent directory. */
@@ -47,6 +49,7 @@ function buildHarness(options: {
 
 	const statuses: string[] = [];
 	const notices: string[] = [];
+	const writes: { path: string; text: string }[] = [];
 	let toolResultHandler: ((event: unknown, ctx: unknown) => Promise<unknown>) | undefined;
 	let commandHandler: ((argument: string, ctx: unknown) => Promise<void>) | undefined;
 
@@ -67,7 +70,9 @@ function buildHarness(options: {
 		probe: {
 			readEnv: () => undefined,
 			readFile: async () => undefined,
-			writeFile: async () => undefined,
+			writeFile: async (path: string, text: string) => {
+				writes.push({ path, text });
+			},
 			runCommand: async () => undefined,
 		},
 		resolveAsker: async () => options.asker,
@@ -98,6 +103,7 @@ function buildHarness(options: {
 		agentDir,
 		statuses,
 		notices,
+		writes,
 		async toolResult() {
 			if (toolResultHandler === undefined) {
 				throw new Error("the extension registered no tool_result handler");
@@ -128,6 +134,24 @@ describe("jevPrunerExtension tool_result", () => {
 			assert.match(text, /\[jev-pruner dropped 76 lines/);
 			assert.equal(harness.statuses.length, 1);
 			assert.match(harness.statuses[0] ?? "", /kept 2\/40 chunks, dropped 76 lines/);
+		} finally {
+			restoreAgentDir(harness);
+		}
+	});
+
+	it("archives dropped output under a self-ignoring directory", async () => {
+		const harness = buildHarness({ asker: alwaysDrop });
+		try {
+			await harness.toolResult();
+			const ignoreMarker = harness.writes.find((write) => write.path.endsWith(".gitignore"));
+			const archive = harness.writes.find((write) => /jev-pruner\/bash-/.test(write.path));
+			assert.ok(ignoreMarker, "the archive directory carries a .gitignore");
+			assert.equal(ignoreMarker.text, "*\n", "the .gitignore ignores the whole directory");
+			assert.ok(archive, "the complete output is archived");
+			assert.ok(
+				harness.writes.indexOf(ignoreMarker) < harness.writes.indexOf(archive),
+				"the ignore marker is written before the archive it covers",
+			);
 		} finally {
 			restoreAgentDir(harness);
 		}
