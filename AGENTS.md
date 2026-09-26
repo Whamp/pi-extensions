@@ -1,6 +1,7 @@
 ## General guidelines
 
 - For new packages, version 0.0.0 initially
+- Give each package's Pi extension a named entrypoint at `extensions/<name>/index.ts` re-exporting `src/index.ts`, and list it in both the root and child `pi.extensions` manifests, so pi config shows the name instead of `src/index.ts`. `scripts/root-pi-package.test.mjs` rejects `src/` labels and duplicate labels.
 
 ## Agent skills
 
