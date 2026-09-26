@@ -7,6 +7,8 @@ description: "Use for \"how does X work\", code walkthroughs before changing som
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
+Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.
+
 ## Step 1. Assess Complexity
 
 If the scope is ambiguous, state your interpretation and explore. The user can redirect.

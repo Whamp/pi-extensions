@@ -1,5 +1,13 @@
 # @whamp/pi-pstack
 
+## 0.8.0
+
+### Minor Changes
+
+- Sync Cursor pstack 0.15.0→0.15.5 from path `pstack` at tip `12d587dfb207`. Absorb role-line reads, swarm SHA/method receipts, autopilot verification rounds, operator-neutral pronouns, and the Opus 5.5 instruction cuts. Keep Pi atomic roles, inherit-parent defaults, and the retired evidence bullet.
+
+  Upstream commits on path `pstack`: `f8abeddd1862`, `f5bdd6826fd0`, `889ec4b68fa5`, `5bf2b1544db7`, `70b2dc8b4b85`, `b42effe0aa50`, `b0b9c7a0baf8`, `12d587dfb207`.
+
 ## 0.7.0
 
 ### Minor Changes

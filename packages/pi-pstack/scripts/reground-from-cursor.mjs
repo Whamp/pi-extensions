@@ -18,7 +18,7 @@ const EXTENSION_COMMANDS = new Set(["/poteto-mode", "/setup-pstack", "/pstack"])
 const CURSOR_FRONTMATTER_KEYS = new Set(["mode", "icon", "color", "reminder", "paths"]);
 
 const CURSOR_SLUG_ALT =
-	"grok-4\\.6-fast-xhigh|claude-fable-5-1-thinking-max|gpt-5\\.6-sol-max|claude-opus-5-thinking-xhigh";
+	"grok-4\\.7-xhigh-fast|claude-opus-5-5-max|grok-4\\.6-fast-xhigh|claude-fable-5-1-thinking-max|gpt-5\\.6-sol-max|claude-opus-5-thinking-xhigh";
 const CURSOR_DEFAULT_SLUGS = new RegExp(
 	"`?(?:" + CURSOR_SLUG_ALT + ")`?(?:\\s*,\\s*`?(?:" + CURSOR_SLUG_ALT + ")`?)*",
 	"g",
@@ -69,6 +69,23 @@ export const SEAMS = [
 		id: "models-path",
 		cursor: /~\/\.cursor\/rules\/pstack-models\.mdc/g,
 		pi: "~/.pi/agent/pstack/models.json",
+	},
+	{
+		id: "models-file-bare",
+		cursor: /pstack-models\.mdc/g,
+		pi: "~/.pi/agent/pstack/models.json",
+	},
+	{
+		id: "role-line-preamble",
+		cursor:
+			/Each (?:spawn below names|reviewer and the synthesizer name) a role line in the `[^`]+` rule and a default\. Set `model` to that line's value, or to the default if the rule or the line is missing\. Leave `model` unset when the value is `auto` or `inherit-parent`\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\./g,
+		pi: 'Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role\'s selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.',
+	},
+	{
+		id: "task-rejects-slug",
+		cursor:
+			/If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\./g,
+		pi: 'If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.',
 	},
 	// Transcript locations. Path shape borrowed from backnotprop/pstack Harness
 	// (https://github.com/backnotprop/pstack/blob/main/skills/poteto-mode/SKILL.md#harness)
@@ -654,9 +671,13 @@ const ATOMIC_ROLE_REPLACEMENTS = [
 	[/your configured perf-issue model/g, "the `perf-issue` role"],
 	[/your configured hillclimb model/g, "the `hillclimb` role"],
 	[/your configured how-explorer model/g, "`how explorers`"],
+	[/the `how explorer` line/g, "`how explorers`"],
 	[/your configured why-investigators model/g, "`why investigators`"],
+	[/the `why investigators` line/g, "`why investigators`"],
 	[/your configured why-synthesizer model/g, "`why synthesizer`"],
+	[/the `why synthesizer` line/g, "`why synthesizer`"],
 	[/your configured reflect-tooling model/g, "`reflect tooling reviewer`"],
+	[/`reflect tooling`(?! reviewer)/g, "`reflect tooling reviewer`"],
 	[
 		/Use your configured architect runners \(defaults inherit-parent\)\./g,
 		"Override Arena's candidate selector with `architect runners` (defaults inherit-parent). Require at least two candidates. The Arena judge still uses `arena judge pool`.",
@@ -670,11 +691,11 @@ export function applyAtomicRoleTransforms(text, rel) {
 	}
 	if (rel === "skills/how/SKILL.md") {
 		text = text.replace(
-			/(## Step 2b\. Direct Explain[\s\S]*?)your configured how-explainer model/,
+			/(## Step 2b\. Direct Explain[\s\S]*?)(?:your configured how-explainer model|the `how explainer` line)/,
 			"$1`how explainer`",
 		);
 		text = text.replace(
-			/(## Step 3\. Synthesize[\s\S]*?)your configured how-explainer model/,
+			/(## Step 3\. Synthesize[\s\S]*?)(?:your configured how-explainer model|the `how explainer` line)/,
 			"$1`how synthesizer`",
 		);
 	}
@@ -723,6 +744,13 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			/^At the end of the run, before handing back, check the log told the truth\. Read this run's transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\)\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That reads unrelated private chats\. Walk the log against what actually happened:$/m,
 		replacement:
 			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk the log against what actually happened:",
+	},
+	{
+		rel: "skills/show-me-your-work/SKILL.md",
+		pattern:
+			/^At the end of the run, before handing back, check the log told the truth\. Read this run's transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\)\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That reads unrelated private chats\. Walk this run's rows against what actually happened\. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:$/m,
+		replacement:
+			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/session-pickup.md",
@@ -1076,6 +1104,118 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			"Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.",
 		].join("\n"),
 	},
+	{
+		rel: "skills/how/SKILL.md",
+		pattern:
+			/^Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem\. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explorer` line, default `grok-4\.7-xhigh-fast`\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references\/explorer-prompt\.md` with its angle filled in\. Then go to Step 3\.$/m,
+		replacement:
+			'Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "worker", task, model }])`, then return `runs.run("explain", { agent: "worker", task, model })` with the explorer outputs.\n\nEach explorer uses:\n- agent: "worker"\n- `model`: `how explorers` (default inherit-parent)\n- `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only\n\nThen go to Step 3.',
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		pattern:
+			/^Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explainer` line, default `claude-opus-5-5-max`\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` without the explorer-findings section\. Go to Step 4\.$/m,
+		replacement:
+			'Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only\n\nGo to Step 4.',
+	},
+	{
+		rel: "skills/how/SKILL.md",
+		pattern:
+			/^Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explainer` line, default `claude-opus-5-5-max`\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` with every explorer's findings filled in\.$/m,
+		replacement:
+			'The same workflow launches `explain` after every explorer settles using:\n- agent: "worker"\n- `model`: `how synthesizer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only',
+	},
+	{
+		rel: "skills/arena/SKILL.md",
+		pattern:
+			/^3\. Pick the runners\. Use the `arena runners` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, default to one each on `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it\. If the Task tool rejects a configured entry, run that seat on its family's default and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use `claude-opus-5-5-max`\. If it rejects a default, use the closest valid slug of the same family from its error message\. Spawn more when the arena covers multiple design directions\. Same model N times when the work is generation-bound rather than judgment-sensitive\.$/m,
+		replacement:
+			'3. Pick the runners. Use `arena runners` from `~/.pi/agent/pstack/models.json` when present. Otherwise default to one each on inherit-parent. An `auto` or `inherit-parent` entry means the parent model, so omit `model` for it. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.',
+	},
+	{
+		rel: "skills/arena/SKILL.md",
+		pattern:
+			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
+		replacement:
+			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"worker\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
+	},
+	{
+		rel: "skills/architect/SKILL.md",
+		pattern:
+			/^Take the runners from the `architect runners` line in the `pstack-models\.mdc` rule, in place of the `arena runners` line\. If the rule or that line is missing, use `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Alias and rejected entries follow the runner rules in the \*\*arena\*\* skill's Phase A\.$/m,
+		replacement:
+			"Override Arena's candidate selector with `architect runners` (defaults inherit-parent). Require at least two candidates. The Arena judge still uses `arena judge pool`.",
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		pattern:
+			/^4\. Pick the worker model from the `swarm workers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, use `grok-4\.7-xhigh-fast`\. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\. For a model race, name each arm's model up front\.$/m,
+		replacement:
+			"4. Pick the worker model from `swarm workers` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. For `auto` or `inherit-parent`, omit `model`. If an explicit selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. For a model race, name each arm's model up front.",
+	},
+	{
+		rel: "skills/swarm/SKILL.md",
+		pattern:
+			/^Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the step 4 model, left unset for `auto` or `inherit-parent`\. Use `environment: "local"` only when the worker needs access to something on the user's computer\.$/m,
+		replacement:
+			'Launch all N workers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "worker-<slice>", agent: "worker", task, model }])`. Give each worker a stable key and the configured model. Omit `model` when the role inherits the parent.',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern:
+			/^Subagent config \(each\):\n- `subagent_type`: `generalPurpose`\n- `model`: the `why investigators` line, default `grok-4\.7-xhigh-fast`\n- `readonly`: `false` \(agent mode\)\. \*\*Do not use readonly\/Ask mode\.\*\* It strips MCP access, which disables MCP-backed investigators entirely\. Investigators still shouldn't write anything\.$/m,
+		replacement:
+			'Each investigator uses:\n- agent: "worker"\n- `model`: `why investigators` (default inherit-parent)\n- `task`: instruct the investigator to inspect only',
+	},
+	{
+		rel: "skills/why/SKILL.md",
+		pattern:
+			/^Spawn one synthesizer subagent:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `why synthesizer` line, default `claude-opus-5-5-max`\n- `readonly`: `false` \(agent mode\)\. The synthesizer's quality check spot-verifies citations, which can require MCP access\. Readonly\/Ask mode strips MCPs and defeats that\.\n\nThe synthesizer gets:\n1\. The investigator findings, including any null results and any categories skipped with justification\n2\. The code anchor from Step 2 \(file paths, symbols, commit hashes, PR numbers, ticket IDs\)\n3\. The user's original question\n4\. The epistemics framework from `references\/epistemics\.md`\n5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$/m,
+		replacement:
+			'The same workflow launches `synthesize-why` after every investigator settles. It uses:\n- agent: "worker"\n- `model`: `why synthesizer` (default inherit-parent)\n\nThe synthesizer gets:\n1. The investigator findings, including any null results and any categories skipped with justification\n2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n3. The user\'s original question\n4. The epistemics framework from `references/epistemics.md`\n5. The synthesizer prompt template from `references/synthesizer-prompt.md`\n\nAfter the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.',
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		pattern:
+			/^One message, three `Task` calls, `subagent_type: generalPurpose`, with `model` set as below, agent mode \(`readonly: false`\)\. Reviewers need MCP access for context lookups \(tickets, chat threads, observability traces referenced in the transcript\)\. Readonly strips MCPs\.$/m,
+		replacement:
+			'The parent resolves any ticket, chat, document, observability, error-tracker, or analytics references from the transcript before launch. Put the transcript path and fetched evidence in one bounded digest. Children do not inherit the parent\'s MCP or extension tools.\n\nLaunch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the three reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.',
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		pattern:
+			/^\| Lens \| Role line \| Default `model` \| Prompt template \|\n\|---\|---\|---\|---\|\n\| Judgment \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-max` \| `references\/judgment-reviewer.md` \|\n\| Tooling \| `reflect tooling` \| `gpt-5\.6-sol-max` \| `references\/tooling-reviewer.md` \|\n\| Divergent \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-max` \| `references\/divergent-reviewer.md` \|$/m,
+		replacement:
+			"| Lens | `model` | Prompt template |\n|---|---|---|\n| Judgment | `reflect judgment reviewer` (default inherit-parent) | `references/judgment-reviewer.md` |\n| Tooling | `reflect tooling reviewer` (default inherit-parent) | `references/tooling-reviewer.md` |\n| Divergent | `reflect divergent reviewer` (default inherit-parent) | `references/divergent-reviewer.md` |",
+	},
+	{
+		rel: "skills/reflect/SKILL.md",
+		pattern:
+			/^One `Task` call, `subagent_type: generalPurpose`, with `model` from the `reflect judgment, divergent, synthesizer` line \(default `claude-opus-5-5-max`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$/m,
+		replacement:
+			'The workflow\'s `synthesize-reviews` child uses `agent: "worker"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer\'s full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.',
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		pattern:
+			/^Launch all reviewers in a single message using the Task tool\. Use the `interrogate reviewers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`, one reviewer per entry, extending or shrinking the Reviewer A\/B\/C labels below to the configured entry count\. If the rule or that line is missing, use the table defaults\.$/m,
+		replacement:
+			'Launch all reviewers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "reviewer-a", agent: "worker", task, model }])` with one stable-keyed item per reviewer. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. Otherwise use the table defaults.',
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		pattern:
+			/^If the Task tool rejects a configured entry, run that reviewer on the table default of its family and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use Reviewer A's default\. If it rejects a table default, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the highest-reasoning tier of the same family\), spawn with it, and open a separate PR to update the default table\. Do not block the review on the slug issue\. Never treat an alias entry as a rejected slug or apply either fallback to it\.$/m,
+		replacement:
+			"If an explicit model selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.",
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
+		pattern:
+			/^- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line\. For an `auto` or `inherit-parent` entry, omit `model` so that reviewer runs on the parent model\.$/m,
+		replacement:
+			"- `model`: the configured `interrogate reviewers` entry, or the table default with no configured line",
+	},
 ];
 
 /** Rewrite executable caller guidance to the stateless catalog and keyed workflow DSL. */
@@ -1282,7 +1422,10 @@ export function assertNoCursorSeams(destRoot) {
 		if (text.includes("subagent_type")) leftover.push(`${rel}: subagent_type`);
 		if (text.includes("~/.cursor/rules/pstack-models.mdc"))
 			leftover.push(`${rel}: pstack-models.mdc`);
+		if (text.includes("pstack-models.mdc")) leftover.push(`${rel}: pstack-models.mdc`);
 		if (text.includes("cursor-team-kit")) leftover.push(`${rel}: cursor-team-kit`);
+		if (text.includes("grok-4.7-xhigh-fast") || text.includes("claude-opus-5-5-max"))
+			leftover.push(`${rel}: cursor default slug`);
 		if (text.includes("<<<<<<<")) leftover.push(`${rel}: merge marker`);
 		if (text.includes("Task subagent")) leftover.push(`${rel}: Task subagent`);
 		if (text.includes("$HOME/.cursor")) leftover.push(`${rel}: $HOME/.cursor`);
