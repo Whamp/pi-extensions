@@ -53,6 +53,21 @@ importers:
         specifier: ^0.85.1
         version: 0.85.1
 
+  packages/pi-inline-identifier:
+    devDependencies:
+      '@earendil-works/pi-coding-agent':
+        specifier: ^0.85.1
+        version: 0.85.1(ws@8.21.3)
+      '@earendil-works/pi-tui':
+        specifier: ^0.85.1
+        version: 0.85.1
+      '@types/node':
+        specifier: ^22.10.2
+        version: 22.20.4
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+
   packages/pi-jev-pruner:
     dependencies:
       undici:

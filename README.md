@@ -7,6 +7,7 @@ npm under `@whamp` once released.
 
 - [`@whamp/pi-pstack`](./packages/pi-pstack): agent workflows, skills, and subagents ported from the Cursor pstack plugin.
 - [`@whamp/pi-quiet`](./packages/pi-quiet): dense tool activity rendering.
+- [`@whamp/pi-inline-identifier`](./packages/pi-inline-identifier): ordered inline skill, agent, and prompt references in one request.
 - [`@whamp/pi-answer`](./packages/pi-answer): interactive question extraction and answering.
 - [`@whamp/pi-btw`](./packages/pi-btw): side conversations as an in-session overlay or a detached Herdr tab.
 - [`@whamp/pi-files`](./packages/pi-files): file browsing and graphical diff actions.
@@ -16,7 +17,7 @@ npm under `@whamp` once released.
 - [`@whamp/pi-local-vllm-thinking-budget`](./packages/pi-local-vllm-thinking-budget): per-model thinking budgets for local vLLM models.
 - [`@whamp/pi-jev-pruner`](./packages/pi-jev-pruner): bash output pruned with TypeSafe Jev before the model reads it, ported from a Claude Code plugin.
 
-The root Pi manifest loads all ten packages, so one git install gets the full
+The root Pi manifest loads eleven packages, so one git install gets the full
 set. Each package also has its own manifest and can be installed alone.
 `pi-jev-pruner` stays inert until Agent Vault credentials exist; read its
 [README](./packages/pi-jev-pruner/README.md) before enabling it.
@@ -33,6 +34,8 @@ Install one released package from npm:
 
 ```bash
 pi install npm:@whamp/pi-pstack
+# Or install the inline identifier package alone:
+pi install npm:@whamp/pi-inline-identifier
 ```
 
 Run a package from a checkout without installing it:
@@ -65,5 +68,6 @@ The repository began as a fork of
 history and its MIT license. `pi-pstack` is a port of the Cursor pstack plugin
 by Lauren Tan (`packages/pi-pstack/LICENSE`). `pi-files` and
 `pi-session-breakdown` adapt `mitsuhiko/agent-stuff` under Apache-2.0; their
-provenance notices ship inside those packages. Read [LICENSE](./LICENSE) for the
-license terms.
+provenance notices ship inside those packages. `pi-inline-identifier` adapts
+Kaushik Gopal's MIT-licensed `pi-kaush` extension and retains its license and
+attribution. Read [LICENSE](./LICENSE) for the repository's license terms.

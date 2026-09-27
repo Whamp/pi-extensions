@@ -47,6 +47,7 @@ function loadExtension() {
 	>();
 	const events = new Map<string, (event: unknown, ctx: unknown) => unknown>();
 	const tools = new Map<string, { name: string }>();
+	const entries: Array<{ name: string; data: unknown }> = [];
 	const pi = {
 		on(event: string, handler: (event: unknown, ctx: unknown) => unknown) {
 			events.set(event, handler);
@@ -60,11 +61,13 @@ function loadExtension() {
 		registerTool(tool: { name: string }) {
 			tools.set(tool.name, tool);
 		},
-		appendEntry() {},
+		appendEntry(name: string, data: unknown) {
+			entries.push({ name, data });
+		},
 		sendUserMessage() {},
 	};
 	pstackExtension(pi as unknown as ExtensionAPI);
-	return { commands, events, tools };
+	return { commands, events, tools, entries };
 }
 
 function makeCtx(options?: {
@@ -116,6 +119,51 @@ describe("pstack extension v2 runtime", () => {
 	it("registers ask_user_question on the host extension API", () => {
 		const { tools } = loadExtension();
 		assert.equal(tools.has("ask_user_question"), true);
+	});
+
+	it("enables sticky Poteto Mode for complete inline tokens anywhere in user input", async () => {
+		for (const text of [
+			"$poteto-mode $teach explain why this skill only inserts one skill",
+			"Explain this with $poteto-mode in the middle.",
+			"This request ends with $poteto-mode",
+		]) {
+			const { events, entries } = loadExtension();
+			const { ctx } = makeCtx();
+			await events.get("input")?.({ type: "input", text, source: "interactive" }, ctx);
+			assert.deepEqual(entries, [{ name: "pstack-mode", data: { enabled: true } }]);
+		}
+	});
+
+	it("does not enable from longer token names or extension-generated input", async () => {
+		for (const text of ["$poteto-mode-extra", "foo$poteto-mode", "$poteto-mode.md"]) {
+			const { events, entries } = loadExtension();
+			const { ctx } = makeCtx();
+			await events.get("input")?.({ type: "input", text, source: "interactive" }, ctx);
+			assert.deepEqual(entries, []);
+		}
+
+		const { events, entries } = loadExtension();
+		const { ctx } = makeCtx();
+		await events.get("input")?.({
+			type: "input",
+			text: "$poteto-mode",
+			source: "extension",
+		}, ctx);
+		assert.deepEqual(entries, []);
+	});
+
+	it("preserves native Poteto skill activation and the explicit off command", async () => {
+		const native = loadExtension();
+		const { ctx } = makeCtx();
+		await native.events.get("input")?.(
+			{ type: "input", text: "/skill:poteto-mode use the workflow", source: "interactive" },
+			ctx,
+		);
+		assert.deepEqual(native.entries, [{ name: "pstack-mode", data: { enabled: true } }]);
+
+		const disabled = loadExtension();
+		await disabled.commands.get("poteto-mode")?.handler("off", ctx);
+		assert.deepEqual(disabled.entries, [{ name: "pstack-mode", data: { enabled: false } }]);
 	});
 
 	it("keeps legacy role selections and diagnostics out of the prompt without rewriting config", async () => {

@@ -1,0 +1,55 @@
+{
+	"name": "@whamp/pi-inline-identifier",
+	"version": "0.0.0",
+	"description": "Compose inline Pi skills, named subagents, and prompt templates in mention order.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Will Hampson (based on work by Kaushik Gopal)",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Whamp/pi-extensions.git",
+		"directory": "packages/pi-inline-identifier"
+	},
+	"bugs": {
+		"url": "https://github.com/Whamp/pi-extensions/issues"
+	},
+	"homepage": "https://github.com/Whamp/pi-extensions/tree/master/packages/pi-inline-identifier#readme",
+	"publishConfig": {
+		"access": "public"
+	},
+	"keywords": [
+		"pi-package",
+		"pi-extension",
+		"inline-identifiers",
+		"skills",
+		"subagents",
+		"prompt-templates"
+	],
+	"files": [
+		"extensions/",
+		"src/",
+		"!src/**/*.test.ts",
+		"README.md",
+		"CHANGELOG.md",
+		"LICENSE"
+	],
+	"peerDependencies": {
+		"@earendil-works/pi-coding-agent": ">=0.80.6",
+		"@earendil-works/pi-tui": ">=0.80.6"
+	},
+	"devDependencies": {
+		"@earendil-works/pi-coding-agent": "^0.85.1",
+		"@earendil-works/pi-tui": "^0.85.1",
+		"@types/node": "^22.10.2",
+		"typescript": "^5.7.2"
+	},
+	"pi": {
+		"extensions": [
+			"./extensions/inline-identifier/index.ts"
+		]
+	},
+	"scripts": {
+		"test": "tsc --noEmit && node --experimental-strip-types --test test/*.test.ts",
+		"typecheck": "tsc --noEmit"
+	}
+}
