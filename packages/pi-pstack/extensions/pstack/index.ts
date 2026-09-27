@@ -34,6 +34,7 @@ import { stripSkillsByLocationPrefix } from "./skill-strip.ts";
 const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "skills");
 
 const POTETO_SKILL = "/skill:poteto-mode";
+const INLINE_POTETO_MODE_RE = /(?<![a-z0-9._%+-])\$poteto-mode(?![a-z0-9_-]|\.[a-z0-9])/;
 
 type ModeEntry = {
 	type?: string;
@@ -186,7 +187,11 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 	});
 
 	pi.on("input", async (event, ctx) => {
-		if (/^\/skill:poteto-mode(?:\s|$)/.test(event.text)) {
+		if (
+			event.source !== "extension" &&
+			(/^\/skill:poteto-mode(?:\s|$)/.test(event.text) ||
+				INLINE_POTETO_MODE_RE.test(event.text))
+		) {
 			persistMode(true, ctx);
 		}
 		return { action: "continue" as const };
