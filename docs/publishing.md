@@ -11,7 +11,7 @@ under `@whamp`:
 1. Land changes on `master` with a **changeset** (`.changeset/*.md`)
 2. **Version packages** PR bumps only changed packages and writes changelogs
 3. After that Version PR merges, CI creates missing tags `@whamp/<pkg>@<version>` on `master`
-4. Tag push (via `RELEASE_TOKEN` PAT) starts **Publish package** once per tag
+4. An App-authenticated tag push starts **Publish package** once per tag
 5. **Publish package** authenticates to npm through GitHub OIDC, runs `npm publish`, and creates a matching GitHub Release
 
 Important: tagging does **not** run when a Version PR is only opened/updated.
@@ -34,18 +34,13 @@ Rules that do not change without a new plan:
 - npm user `whamp`, which owns the `@whamp` scope, with 2FA enabled
 - Every released package needs a GitHub Actions trusted publisher on npm. Set organization `Whamp`, repository `pi-extensions`, workflow filename `publish.yml`, and allow direct `npm publish`. Do not set an environment name unless the job uses one.
 - `publish.yml` grants `id-token: write` and pins npm 11.17.0, above the minimum version 11.5.1 needed for trusted publishing.
-- Repo secret `RELEASE_TOKEN`: a GitHub **personal access token** used by `release-pr.yml` (and optionally publish) instead of `GITHUB_TOKEN`
-  - Required because `changesets/action` needs to open PRs, which the default `GITHUB_TOKEN` cannot do when the repo restricts Actions from creating PRs
-  - Also used so tag pushes start `publish.yml` (events from the default `GITHUB_TOKEN` do not trigger other workflows)
-  - Classic PAT: `repo` + `workflow` scopes
-  - Fine-grained PAT (this repo): **Contents** read/write, **Pull requests** read/write, **Metadata** read, **Workflows** read/write
-  - Store under Settings → Secrets and variables → Actions
+- A dedicated GitHub App owned by `Whamp`, installed **only** on `Whamp/pi-extensions`. Give it **Contents** read/write and **Pull requests** read/write; keep webhooks off. It does not need Actions or Workflows write permission.
+- Repo Actions variable `PI_RELEASE_APP_CLIENT_ID`: the App's client ID.
+- Repo Actions secret `PI_RELEASE_APP_PRIVATE_KEY`: the App's PEM private key. Store a recovery copy in a secret manager, not in this repository.
 
-`scripts/setup-release-secrets.sh` creates and stores only the GitHub `RELEASE_TOKEN`. Renew it when it expires. Removing this remaining manual rotation would require migrating the Version PR and tag workflow to a GitHub App.
+The App action requests a short-lived token scoped to this repository and those two permissions. `changesets/action` uses it to create the Version PR; checkout uses it to push tags. These App-authenticated events run PR checks and the publish workflow. The default `GITHUB_TOKEN` does not trigger tag-push workflows and can create PRs only with a repository setting that would still leave their CI approval-required. `publish.yml` uses its own built-in `GITHUB_TOKEN` to create GitHub Releases.
 
-```bash
-./scripts/setup-release-secrets.sh
-```
+After installing the App, configure its credentials under repository Settings → Secrets and variables → Actions. The private key is shown only when generated. Never commit it or paste it into an issue or chat.
 
 Manual check of the current state:
 
@@ -71,7 +66,7 @@ On push to `master`, `.github/workflows/release-pr.yml` does one of two things:
    No tags, no publish.
 2. **No pending changesets** (`hasChangesets=false`, typically right after a Version PR merge):
    create any missing annotated tags on the default-branch tip.
-   Each tag push (via `RELEASE_TOKEN`) starts `publish.yml` once.
+   Each App-authenticated tag push starts `publish.yml` once.
 
 ```text
 @whamp/pi-quiet@0.4.2
@@ -79,7 +74,7 @@ On push to `master`, `.github/workflows/release-pr.yml` does one of two things:
 ```
 
 Do not also `gh workflow run publish.yml` after the tag push.
-That double-fires publish and races on npm.
+It starts an unnecessary second publish run.
 
 Manual tag dry-run:
 
@@ -210,7 +205,7 @@ On the default branch (`master`):
 - Require a pull request before merging (not currently enabled)
 - Require status check **CI** / `pnpm check` to pass before merge
 - Restrict who can push tags if available on your plan
-- Do not expose publishing credentials to fork PRs. Only package tag runs and manual dispatch get GitHub's short-lived OIDC credential.
+- Do not expose publishing credentials to fork PRs. `release-pr.yml` runs only on the default branch and receives the App private key. `publish.yml` runs on package tags or manual dispatch and uses npm's short-lived OIDC credential.
 
 Admins may still bypass PR rules for emergency release infra fixes.
 
@@ -227,7 +222,7 @@ Admins may still bypass PR rules for emergency release infra fixes.
 - Tag `@whamp/<pkg>@<ver>` (or workflow_dispatch) publishes that package when the version is new
 - Matching GitHub Release exists per published tag
 - Already-published versions skip npm publish without failing the release step
-- No npm token is needed for routine releases; `ci.yml` receives no npm publish credential
+- Neither an npm token nor a renewable GitHub PAT is needed for routine releases; `ci.yml` receives no publish credentials
 - New packages require a first publish and one trusted publisher connection before CI can publish them
 - `docs/publishing.md` matches the automated path
 - `pnpm check` and `pnpm test` pass on the default branch
