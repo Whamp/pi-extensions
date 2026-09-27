@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.0.2
+
+### Patch Changes
+
+- 9ec037f: Publish the unchanged extension through npm trusted publishing to verify the token-free release workflow.
+
 ## 0.0.1
 
 ### Patch Changes

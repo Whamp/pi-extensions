@@ -1,6 +1,6 @@
 {
 	"name": "@whamp/pi-inline-identifier",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "Compose inline Pi skills, named subagents, and prompt templates in mention order.",
 	"type": "module",
 	"license": "MIT",
