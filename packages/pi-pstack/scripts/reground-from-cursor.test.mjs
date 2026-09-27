@@ -463,6 +463,11 @@ test("renderWrite matches Poteto defaults and removes retired reply guidance", (
 
 	assert.equal(extractPotetoDefaultsSection(generated), extractPotetoDefaultsSection(shipped));
 	assert.equal(generated.includes(UPSTREAM_POTETO_EVIDENCE_BULLET), false);
+	for (const text of [generated, shipped]) {
+		assert.ok(text.includes("Before selecting a delegated model, use `model-routing`"));
+		assert.equal(text.includes("injected pstack role table"), false);
+		assert.equal(text.includes("The role table is injected"), false);
+	}
 });
 
 const CALLER_GUIDANCE_CONCEPTS = [

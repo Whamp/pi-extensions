@@ -50,7 +50,7 @@ The other skills are Hidden; the mode skill uses them as needed.
 
 ## Model roles
 
-Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pstack` to write it. The 22 role names and cardinalities are in `skills/setup-pstack/references/MODEL-ROLES.md`. The extension injects the role table only when a role has a real model slug. Default inherit-all injects nothing. `inherit-parent` or `auto` runs on the parent session model.
+Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pstack` to write it. The 22 role names and cardinalities are in `skills/setup-pstack/references/MODEL-ROLES.md`. The extension does not inject model roles into the system prompt. Before delegation, use `model-routing` to read the role configuration and select a model under the caller's routing policy. Install that skill separately from `Whamp/skills`; it is not bundled here. Neither Poteto Mode nor the `/pstack` skills toggle controls role lookup. `inherit-parent` or `auto` runs on the parent session model.
 
 ## Differences from the Cursor plugin
 
@@ -60,7 +60,7 @@ Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pst
 - Slash commands are `/skill:<name>` instead of `/name`.
 - Subagent delegation uses pi-subagents. Launch one child with `subagent({ action: "execute", input: { agent, task } })`. Set `input.async: true` for background work. Run parallel or dependent children in one `workflowScript` with stable keys. This package does not ship the `subagent` tool.
 - Session transcripts live under `~/.pi/agent/sessions/--<slug>--/` instead of Cursor `agent-transcripts/`. The active file is `$PI_SESSION_FILE`. `<slug>` is the absolute cwd with the leading slash dropped and each `/` turned into `-`. Stay inside that workspace directory. Do not glob sibling slugs.
-- The benny automation pack is not ported; it depends on Cursor automations. Model roles live in `~/.pi/agent/pstack/models.json`, written by `/setup-pstack` and injected only when a role has a real model slug.
+- The benny automation pack is not ported; it depends on Cursor automations. Model roles live in `~/.pi/agent/pstack/models.json`, written by `/setup-pstack` and read on demand through `model-routing`.
 - `make-bot-ui` is not ported. It is Cursor Grok Bot / routine webhook UI.
 
 ## Related port

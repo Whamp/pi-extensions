@@ -336,7 +336,7 @@ export const SEAMS = [
 	{
 		id: "setup-rule",
 		cursor: /the `\/setup-pstack` rule/g,
-		pi: "the injected pstack role table",
+		pi: "the pstack role configuration resolved through `model-routing`",
 	},
 	{
 		id: "ten-lanes",
@@ -532,7 +532,7 @@ const POTETO_INTRO = [
 	"`/poteto-mode` enables this mode for the rest of the session.",
 	"`/poteto-mode off` disables it.",
 	"`/skill:poteto-mode` also enables it.",
-	"The role table is injected from `~/.pi/agent/pstack/models.json` only when a role has a real model slug.",
+	"Before selecting a delegated model, use `model-routing` to read the configured roles on demand.",
 	"",
 	"",
 ].join("\n");
@@ -540,7 +540,7 @@ const POTETO_INTRO = [
 const SUBAGENT_DEFAULTS = [
 	'**Defaults for every child launch.** Set `input.async: true` for background work. Pass file pointers instead of inlining context. Select an explicit model per role when `/setup-pstack` configures one. Multiple children or dependent stages use one `subagent({ action: "execute", input: { workflowScript, ... } })` call. Inside the script, use `await runs.all([{ key: "stable-key", ... }])` for fan-out and `return runs.run("stable-key", { ... })` for a direct or final child. Count every later synthesis or review child in `input.maxSubagentSpawnsPerRun` when the workflow sets that limit.',
 	"A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent for `why`, `reflect`, and `interrogate` unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools.",
-	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Per-role lines in the injected pstack role table override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case.",
+	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Configured roles resolved through `model-routing` override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case.",
 ].join("\n\n");
 
 const RETIRED_POTETO_EVIDENCE_BULLET =

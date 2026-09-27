@@ -31,8 +31,6 @@ import {
 import { registerAskUserQuestion } from "./ask-user-question.ts";
 import { stripSkillsByLocationPrefix } from "./skill-strip.ts";
 
-export { systemPromptInjection };
-
 const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "skills");
 
 const POTETO_SKILL = "/skill:poteto-mode";
@@ -199,7 +197,7 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 		const base = loaded.config.skillsEnabled
 			? event.systemPrompt
 			: stripSkillsByLocationPrefix(event.systemPrompt, SKILLS_DIR).prompt;
-		const extra = systemPromptInjection(loaded.config, potetoMode);
+		const extra = systemPromptInjection(potetoMode);
 		return {
 			systemPrompt: extra ? `${base}\n\n${extra}` : base,
 		};

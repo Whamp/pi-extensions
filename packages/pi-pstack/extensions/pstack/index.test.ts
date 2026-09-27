@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { fileURLToPath } from "node:url";
 import type { ExtensionAPI, ExtensionCommandContext } from "@earendil-works/pi-coding-agent";
 import pstackExtension from "./index.ts";
 
@@ -117,9 +118,9 @@ describe("pstack extension v2 runtime", () => {
 		assert.equal(tools.has("ask_user_question"), true);
 	});
 
-	it("injects atomic role lines with cardinality and never puts diagnostics in the prompt", async () => {
+	it("keeps legacy role selections and diagnostics out of the prompt without rewriting config", async () => {
 		await withAgentDir(async ({ jsonPath }) => {
-			writeJson(jsonPath, {
+			const original = writeJson(jsonPath, {
 				version: 1,
 				roles: {
 					"feature, refactoring": SELECTOR,
@@ -132,17 +133,48 @@ describe("pstack extension v2 runtime", () => {
 				{ type: "before_agent_start", prompt: "go", systemPrompt: "BASE" },
 				ctx,
 			);
-			assert.equal(typeof result, "object");
-			assert.ok(result && typeof result === "object" && "systemPrompt" in result);
-			const prompt = (result as { systemPrompt: string }).systemPrompt;
-			assert.equal(prompt.includes("BASE"), true);
-			assert.equal(prompt.includes(`feature implementation [single]: "${SELECTOR}"`), true);
-			assert.equal(prompt.includes(`refactoring implementation [single]: "${SELECTOR}"`), true);
-			assert.equal(prompt.includes("feature, refactoring"), false);
-			assert.equal(prompt.includes("how critics"), false);
-			assert.equal(prompt.includes("legacy-migrated"), false);
-			assert.equal(prompt.includes("retired-role"), false);
-			assert.equal(prompt.includes(POTETO_ONE_LINER), false);
+			assert.deepEqual(result, { systemPrompt: "BASE" });
+			assert.equal(readFileSync(jsonPath, "utf8"), original);
+		});
+	});
+
+	it("keeps role selections out of every toggle combination while preserving skills and Poteto Mode", async () => {
+		await withAgentDir(async ({ jsonPath }) => {
+			const roles = {
+				"bug-fix": SELECTOR,
+				"arena runners": [SELECTOR, SELECTOR_B],
+				"arena judge pool": [SELECTOR_B, SELECTOR],
+			};
+			writeJson(jsonPath, { version: 2, roles, skillsEnabled: true });
+			const { events, commands } = loadExtension();
+			const { ctx } = makeCtx();
+			const location = fileURLToPath(new URL("../../skills/poteto-mode/SKILL.md", import.meta.url));
+			const otherSkill =
+				"  <skill><name>other</name><location>/other/SKILL.md</location></skill>\n";
+			const pstackSkill = `  <skill><name>poteto-mode</name><location>${location}</location></skill>\n`;
+			const base = `BASE\n<available_skills>\n${otherSkill}${pstackSkill}</available_skills>`;
+			const hidden = `BASE\n<available_skills>\n${otherSkill}</available_skills>`;
+
+			for (const skillsEnabled of [false, true]) {
+				await commands.get("pstack")?.handler(skillsEnabled ? "on" : "off", ctx);
+				await events.get("input")?.({ text: "/skill:poteto-mode task" }, ctx);
+				for (const potetoMode of [true, false]) {
+					if (!potetoMode) {
+						await commands.get("poteto-mode")?.handler("off", ctx);
+					}
+					const prompt = skillsEnabled ? base : hidden;
+					assert.deepEqual(
+						await events.get("before_agent_start")?.({ systemPrompt: base }, ctx),
+						{ systemPrompt: potetoMode ? `${prompt}\n\n${POTETO_ONE_LINER}` : prompt },
+						`skillsEnabled=${skillsEnabled}, potetoMode=${potetoMode}`,
+					);
+				}
+				assert.deepEqual(JSON.parse(readFileSync(jsonPath, "utf8")), {
+					version: 2,
+					roles,
+					skillsEnabled,
+				});
+			}
 		});
 	});
 
