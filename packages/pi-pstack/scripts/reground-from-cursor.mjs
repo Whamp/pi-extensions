@@ -686,6 +686,18 @@ const ATOMIC_ROLE_REPLACEMENTS = [
 
 /** Rewrite upstream role prose to the atomic Pi schema, with file-specific How and Reflect splits. */
 export function applyAtomicRoleTransforms(text, rel) {
+	// Routed read-only skills launch only inspect-only children, so every emitted
+	// child uses the reviewer role (read/search tools, no bash, edit, or write).
+	if (
+		[
+			"skills/how/SKILL.md",
+			"skills/why/SKILL.md",
+			"skills/reflect/SKILL.md",
+			"skills/interrogate/SKILL.md",
+		].includes(rel)
+	) {
+		text = text.replaceAll('agent: "worker"', 'agent: "reviewer"');
+	}
 	for (const [cursor, pi] of ATOMIC_ROLE_REPLACEMENTS) {
 		text = text.replace(cursor, pi);
 	}
@@ -823,7 +835,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~\/\.cursor\/rules\/pstack-models\.mdc` when present\. Otherwise use `claude-fable-5-1-thinking-max`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
 		replacement:
-			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"worker\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
+			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"reviewer\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
@@ -1137,7 +1149,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
 		replacement:
-			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"worker\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
+			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"reviewer\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
 	},
 	{
 		rel: "skills/architect/SKILL.md",

@@ -20,10 +20,10 @@ When in doubt, take the simple path.
 
 ## Step 2a. Explore (complex questions only)
 
-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "worker", task, model }])`, then return `runs.run("explain", { agent: "worker", task, model })` with the explorer outputs.
+Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "reviewer", task, model }])`, then return `runs.run("explain", { agent: "reviewer", task, model })` with the explorer outputs.
 
 Each explorer uses:
-- agent: "worker"
+- agent: "reviewer"
 - `model`: `how explorers` (default inherit-parent)
 - `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only
 
@@ -31,8 +31,8 @@ Then go to Step 3.
 
 ## Step 2b. Direct Explain (simple questions)
 
-Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:
-- agent: "worker"
+Launch one standalone child with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: false } })` using:
+- agent: "reviewer"
 - `model`: `how explainer` (default inherit-parent)
 - `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only
 
@@ -41,7 +41,7 @@ Go to Step 4.
 ## Step 3. Synthesize (complex questions only)
 
 The same workflow launches `explain` after every explorer settles using:
-- agent: "worker"
+- agent: "reviewer"
 - `model`: `how synthesizer` (default inherit-parent)
 - `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only
 
