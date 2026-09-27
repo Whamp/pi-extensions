@@ -1,5 +1,17 @@
 # @whamp/pi-pstack
 
+## 0.9.0
+
+### Minor Changes
+
+- 9afa9b6: Add inline skill, agent, and prompt references in one request. Enable sticky Poteto Mode when a complete `$poteto-mode` token appears anywhere in user input.
+
+### Patch Changes
+
+- 2eff7b5: Point transcript skills at `~/.pi/agent/sessions/--<slug>--/` instead of leftover Cursor `agent-transcripts/` paths. The previous sessions-path seam inverted the "do not glob" warning so agents were told not to look in the Pi session directory.
+
+  Borrowed the Pi path shape from [backnotprop/pstack](https://github.com/backnotprop/pstack)'s Harness mapping. Adapted it for this port with `$PI_SESSION_FILE` and a sibling-slug fence.
+
 ## 0.8.0
 
 ### Minor Changes
