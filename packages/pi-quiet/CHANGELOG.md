@@ -1,5 +1,11 @@
 # @whamp/pi-quiet
 
+## 0.4.3
+
+### Patch Changes
+
+- c8aa8f1: Publish the unchanged extension to verify App-authenticated Version PRs and tags with npm trusted publishing.
+
 ## 0.4.2
 
 ### Patch Changes
