@@ -10,35 +10,28 @@ concurrency:
   group: release-pr-${{ github.ref }}
   cancel-in-progress: true
 
-# GITHUB_TOKEN cannot open PRs when the repo restricts Actions from creating PRs.
-# Use a personal access token (repo secret RELEASE_TOKEN) with contents + pull-requests.
-# Tag pushes with that PAT start publish.yml (GITHUB_TOKEN tag pushes do not). See docs/publishing.md.
 permissions:
-  contents: write
-  pull-requests: write
+  contents: read
 
 jobs:
   version-and-tag:
     name: Version packages PR and tags
     runs-on: ubuntu-latest
     steps:
-      - name: Require RELEASE_TOKEN
-        env:
-          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        run: |
-          if [ -z "${RELEASE_TOKEN}" ]; then
-            echo "::error::Missing repository secret RELEASE_TOKEN."
-            echo "Create a PAT that can open PRs and push tags, then add it as RELEASE_TOKEN."
-            echo "See docs/publishing.md."
-            exit 1
-          fi
+      - name: Create release App token
+        id: release_token
+        uses: actions/create-github-app-token@v3
+        with:
+          client-id: ${{ vars.PI_RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.PI_RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
 
       - name: Checkout
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          # PAT so subsequent git push / PR create are not limited to GITHUB_TOKEN rules
-          token: ${{ secrets.RELEASE_TOKEN }}
+          token: ${{ steps.release_token.outputs.token }}
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -63,8 +56,7 @@ jobs:
           commit: "chore: version packages"
           createGithubReleases: false
         env:
-          # changesets/action reads GITHUB_TOKEN
-          GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
+          GITHUB_TOKEN: ${{ steps.release_token.outputs.token }}
 
       # Tag only after versions have landed on the default branch.
       # When hasChangesets=true, changesets/action just opened/updated a Version PR and left
@@ -97,8 +89,7 @@ jobs:
               continue
             fi
             git tag -a "${TAG}" -m "Release ${TAG}"
-            # RELEASE_TOKEN is a PAT, so the tag push triggers publish.yml once.
-            # Do not also gh workflow run - that double-fires publish and races on npm.
+            # App-authenticated tag pushes trigger publish.yml.
             git push origin "refs/tags/${TAG}"
             echo "Tagged ${TAG} (publish.yml will run from the tag push)"
           done
