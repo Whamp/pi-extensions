@@ -12,7 +12,7 @@ under `@whamp`:
 2. **Version packages** PR bumps only changed packages and writes changelogs
 3. After that Version PR merges, CI creates missing tags `@whamp/<pkg>@<version>` on `master`
 4. Tag push (via `RELEASE_TOKEN` PAT) starts **Publish package** once per tag
-5. **Publish package** runs `npm publish` + creates a matching GitHub Release
+5. **Publish package** authenticates to npm through GitHub OIDC, runs `npm publish`, and creates a matching GitHub Release
 
 Important: tagging does **not** run when a Version PR is only opened/updated.
 Publish waits until the Version PR lands on the default branch.
@@ -22,8 +22,9 @@ Rules that do not change without a new plan:
 - Root package stays `"private": true` and is never published
 - Never republish an existing version; always bump first
 - Do not store npm tokens in the git repo
-- CI publish uses the `NPM_TOKEN` repository secret (granular automation token preferred)
-- Local `npm login` publish is emergency-only; CI is primary
+- CI publish uses an npm trusted publisher for each package. It does not use `NPM_TOKEN`.
+- New packages need one first publish before npm allows a trusted publisher connection.
+- Local `npm login` publish is for that first publish or emergencies only; CI is primary
 - Tag format is always `@whamp/<name>@<semver>` (not monorepo-only `v*` tags)
 - Version `0.0.0` marks an unreleased package. It is never tagged or published;
   a changeset bump is required first
@@ -31,8 +32,8 @@ Rules that do not change without a new plan:
 ## Prerequisites
 
 - npm user `whamp`, which owns the `@whamp` scope, with 2FA enabled
-- Repo secret `NPM_TOKEN`: npm **granular automation** token (type **Automation**, not classic / publish-with-OTP) with publish rights on `@whamp/*`
-  - Classic tokens and granular tokens that still require 2FA OTP will fail CI with `EOTP`
+- Every released package needs a GitHub Actions trusted publisher on npm. Set organization `Whamp`, repository `pi-extensions`, workflow filename `publish.yml`, and allow direct `npm publish`. Do not set an environment name unless the job uses one.
+- `publish.yml` grants `id-token: write` and pins npm 11.17.0, above the minimum version 11.5.1 needed for trusted publishing.
 - Repo secret `RELEASE_TOKEN`: a GitHub **personal access token** used by `release-pr.yml` (and optionally publish) instead of `GITHUB_TOKEN`
   - Required because `changesets/action` needs to open PRs, which the default `GITHUB_TOKEN` cannot do when the repo restricts Actions from creating PRs
   - Also used so tag pushes start `publish.yml` (events from the default `GITHUB_TOKEN` do not trigger other workflows)
@@ -40,9 +41,7 @@ Rules that do not change without a new plan:
   - Fine-grained PAT (this repo): **Contents** read/write, **Pull requests** read/write, **Metadata** read, **Workflows** read/write
   - Store under Settings → Secrets and variables → Actions
 
-`scripts/setup-release-secrets.sh` walks through both tokens, verifies them
-against npm and the GitHub API, writes them as repo secrets, and stores them in
-Agent Vault. Re-run it to rotate either token.
+`scripts/setup-release-secrets.sh` creates and stores only the GitHub `RELEASE_TOKEN`. Renew it when it expires. Removing this remaining manual rotation would require migrating the Version PR and tag workflow to a GitHub App.
 
 ```bash
 ./scripts/setup-release-secrets.sh
@@ -51,8 +50,7 @@ Agent Vault. Re-run it to rotate either token.
 Manual check of the current state:
 
 ```bash
-npm whoami
-# Optional availability checks (404 means not published yet):
+# A 404 means the version has not reached the registry:
 npm view @whamp/pi-quiet version || true
 ```
 
@@ -120,8 +118,10 @@ For each tag it:
 3. Runs `pnpm check` and `npm pack --dry-run` in that package
 4. Fails if tag version ≠ `package.json` version
 5. Skips `npm publish` if that version already exists on the registry
-6. Publishes with `NODE_AUTH_TOKEN` / `NPM_TOKEN` when needed (also treats "already published" races as success)
+6. Publishes through npm trusted publishing when needed (also treats "already published" races as success)
 7. Creates a GitHub Release for the tag (idempotent if it already exists)
+
+A manual dispatch uses the workflow from the default branch but checks out the requested tag. Use it to retry a tag created before an authentication change without moving or replacing the tag. Rerunning the old tag-triggered job keeps its older workflow definition.
 
 Dry-run from Actions UI:
 
@@ -138,37 +138,35 @@ npm pack --dry-run
 
 Must include only intended paths: `extensions/` or `src/`, `README.md`, `package.json`, `LICENSE`.
 
-Each package keeps `LICENSE` as a symlink to the repo-root license; `prepack` materializes a real file into the tarball, and `postpack` restores the symlink.
+Packages with a repo-root license symlink use `prepack` to put a real file in the tarball and `postpack` to restore the symlink. Ports that retain an upstream license include their own `LICENSE` file.
 
 No `.pi/`, `local-test/`, `plan/`, auth files, home paths, or `AGENTS.md` unless deliberate.
 
 ## Manual / emergency publish
 
-Prefer CI. If you must publish locally:
+Prefer CI. For a new package, first land its changeset and Version PR. Then sign in to npm as `whamp`, check that its existing tag matches `package.json`, and publish the first version once:
 
 ```bash
 npm login
 pnpm check
-pnpm --filter @whamp/pi-quiet publish --access public
-git tag -a @whamp/pi-quiet@0.4.2 -m "Release @whamp/pi-quiet 0.4.2"
-git push origin @whamp/pi-quiet@0.4.2
+cd packages/<new-package>
+npm publish --access public
 ```
 
-Caution: `pnpm -r publish` attempts every non-private package. Prefer per-package
-or tag-driven CI.
+Add a trusted publisher through the new package's npm settings or `npm trust github @whamp/<new-package> --repo Whamp/pi-extensions --file publish.yml --allow-publish`. This requires account sign-in and 2FA. Dispatch **Publish package** on `master` with the existing tag and `dry_run: false` to create its matching GitHub Release. The workflow skips `npm publish` because the version exists. Do not create a second tag.
+
+Caution: `pnpm -r publish` attempts every non-private package. Publish one package at a time.
 
 ## First-time bootstrap
 
-1. Merge the changeset + publish workflows to `master`.
-2. Run `./scripts/setup-release-secrets.sh` (creates both tokens, sets both repo secrets, stores them in Agent Vault).
-3. Pending changesets bump `pi-pstack` to `0.7.0` and `pi-quiet` to `0.4.2` in the first Version PR. The six personal packages stay at `0.0.0` and are not tagged.
-4. After the Version PR merges, confirm each tag's **Publish package** run, npm page, and:
+Each existing package needs one trusted publisher connection. A new package needs the first publish above because npm requires the package to exist before trust can be configured. Later releases use changesets, the Version PR, and CI.
+
+Confirm the published version and exercise an install:
 
 ```bash
-pi install npm:@whamp/pi-quiet
+npm view @whamp/pi-inline-identifier version
+pi install npm:@whamp/pi-inline-identifier
 ```
-
-5. Later releases use changesets + Version PR only.
 
 ## Pre-publish checklist (still useful for manual cuts)
 
@@ -212,13 +210,13 @@ On the default branch (`master`):
 - Require a pull request before merging (not currently enabled)
 - Require status check **CI** / `pnpm check` to pass before merge
 - Restrict who can push tags if available on your plan
-- Do not put `NPM_TOKEN` on fork PRs (tag/dispatch-only publish already avoids that)
+- Do not expose publishing credentials to fork PRs. Only package tag runs and manual dispatch get GitHub's short-lived OIDC credential.
 
 Admins may still bypass PR rules for emergency release infra fixes.
 
 ## Out of scope (this automation)
 
-- npm OIDC trusted publishing (token secret is the current path)
+- Fully automated first publish of a new npm package (npm requires the package to exist before its trusted publisher can be configured)
 - Fully automated Changesets multi-package publish without tags
 - Marketing / social announcement copy
 - Branch-protection policy changes that require admin UI (document recommended settings only)
@@ -229,6 +227,7 @@ Admins may still bypass PR rules for emergency release infra fixes.
 - Tag `@whamp/<pkg>@<ver>` (or workflow_dispatch) publishes that package when the version is new
 - Matching GitHub Release exists per published tag
 - Already-published versions skip npm publish without failing the release step
-- No npm token in git; `ci.yml` does not receive `NPM_TOKEN`
+- No npm token is needed for routine releases; `ci.yml` receives no npm publish credential
+- New packages require a first publish and one trusted publisher connection before CI can publish them
 - `docs/publishing.md` matches the automated path
 - `pnpm check` and `pnpm test` pass on the default branch

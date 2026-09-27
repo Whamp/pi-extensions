@@ -14,9 +14,9 @@ set -euo pipefail
 
 if [[ -t 1 ]] && command -v tput >/dev/null 2>&1 && [[ "$(tput colors 2>/dev/null || echo 0)" -ge 8 ]]; then
   BOLD=$(tput bold); DIM=$(tput dim); RESET=$(tput sgr0)
-  BLUE=$(tput setaf 4); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3); RED=$(tput setaf 1)
+  BLUE=$(tput setaf 4); GREEN=$(tput setaf 2); YELLOW=$(tput setaf 3)
 else
-  BOLD=""; DIM=""; RESET=""; BLUE=""; GREEN=""; YELLOW=""; RED=""
+  BOLD=""; DIM=""; RESET=""; BLUE=""; GREEN=""; YELLOW=""
 fi
 
 # Author sets this at the top of the stages section.
@@ -182,14 +182,13 @@ finish() {
 # ──────────────────────────────────────────────────────────────────────────
 # Stages — release secrets for Whamp/pi-extensions
 #
-# Creates the two tokens the release train needs, writes them as GitHub
-# Actions repo secrets, stores them in Agent Vault, and attaches the vault
-# services that make them usable through the proxy.
+# Creates the GitHub release token, stores it as a repo secret and in Agent Vault,
+# and attaches the vault service. npm publishes through GitHub OIDC.
 #
-# Re-run any time to rotate either token: every write is an upsert.
+# Re-run to rotate the release token: every write is an upsert.
 # ──────────────────────────────────────────────────────────────────────────
 
-TOTAL_STAGES=5
+TOTAL_STAGES=4
 
 # gh resolves the target repository without leaving this checkout.
 export GH_REPO="Whamp/pi-extensions"
@@ -197,18 +196,6 @@ REPO="$GH_REPO"
 
 VAULT_WRITTEN=()
 VAULT_SKIPPED=()
-
-# npm_auth_check TOKEN — succeed when the token authenticates as whamp.
-npm_auth_check() {
-  local tmpdir rc
-  tmpdir="$(mktemp -d)"
-  printf '//registry.npmjs.org/:_authToken=%s\n' "$1" > "$tmpdir/.npmrc"
-  chmod 600 "$tmpdir/.npmrc"
-  rc=0
-  (cd "$tmpdir" && npm whoami 2>/dev/null) | grep -qx 'whamp' || rc=1
-  rm -rf "$tmpdir"
-  return "$rc"
-}
 
 # github_auth_check TOKEN — succeed when the token is Whamp's with push access.
 github_auth_check() {
@@ -273,27 +260,6 @@ vault_service() {
 banner "Release secrets — Whamp/pi-extensions"
 
 # ── Stage 1 ───────────────────────────────────────────────────────────────
-stage "npm — create the publish token"
-say "CI publishes @whamp/* packages with this token. npm shows the value once."
-open_url "https://www.npmjs.com/settings/whamp/tokens"
-step "Sign in as whamp if prompted, then click 'Generate New Token' → 'Granular Access Token'."
-step "Name it 'pi-extensions-ci' and set an expiration date — 365 days keeps rotation annual."
-step "Under 'Packages and scopes', set Permissions to 'Read and write'."
-step "Choose 'Only select packages and scopes' and add the '@whamp' scope."
-step "Leave Organizations at 'No access'."
-step "Turn ON 'Bypass 2FA' — npm requires it for token publishes and CI cannot answer a prompt."
-step "Click 'Generate token', then copy the value."
-ask_secret NPM_TOKEN "Paste the npm token:"
-if [[ -z "$NPM_TOKEN" ]]; then warn "nothing pasted — re-run when ready"; exit 1; fi
-note "Checking the token against the registry (safe to skip if this host is offline)…"
-if npm_auth_check "$NPM_TOKEN"; then
-  printf '  %s✓ token authenticates as whamp%s\n' "$GREEN" "$RESET"
-else
-  warn "the registry did not accept the token as user whamp"
-  confirm "Continue anyway and store it?" || { warn "stopped before writing anything"; exit 1; }
-fi
-
-# ── Stage 2 ───────────────────────────────────────────────────────────────
 stage "GitHub — create the release token"
 say "This PAT lets Actions open the Version packages PR and push the tags that trigger publish."
 open_url "https://github.com/settings/personal-access-tokens/new?name=pi-extensions-release&description=Open+release+PRs+and+push+package+tags+for+Whamp%2Fpi-extensions&expires_in=365&contents=write&pull_requests=write&workflows=write"
@@ -311,32 +277,29 @@ else
   confirm "Continue anyway and store it?" || { warn "stopped before writing anything"; exit 1; }
 fi
 
-# ── Stage 3 ───────────────────────────────────────────────────────────────
-stage "GitHub — write the repo secrets"
-say "Both values go to Actions secrets on $REPO; they are piped to gh, never echoed."
-set_secret NPM_TOKEN "$NPM_TOKEN"
+# ── Stage 2 ───────────────────────────────────────────────────────────────
+stage "GitHub — write the repo secret"
+say "The release token goes to Actions secrets on $REPO; it is piped to gh, never echoed."
 set_secret RELEASE_TOKEN "$RELEASE_TOKEN"
 note "Secrets on $REPO now:"
 gh secret list --repo "$REPO" 2>/dev/null | sed 's/^/    /' || warn "could not list secrets"
 
-# ── Stage 4 ───────────────────────────────────────────────────────────────
-stage "Agent Vault — store the credentials"
+# ── Stage 3 ───────────────────────────────────────────────────────────────
+stage "Agent Vault — store the credential"
 if ! vault_ready; then
   warn "Agent Vault is not configured on this host — see the agent-vault-secret skill"
   VAULT_SKIPPED+=("vault credentials")
 else
-  say "Upserting both tokens in vault '$VAULT_NAME' on $VAULT_HOST; values travel on stdin."
-  vault_set NPM_TOKEN "$NPM_TOKEN"
+  say "Upserting the release token in vault '$VAULT_NAME' on $VAULT_HOST; it travels on stdin."
   vault_set RELEASE_TOKEN "$RELEASE_TOKEN"
 fi
 
-# ── Stage 5 ───────────────────────────────────────────────────────────────
-stage "Agent Vault — attach the services"
+# ── Stage 4 ───────────────────────────────────────────────────────────────
+stage "Agent Vault — attach the service"
 if ! vault_ready; then
   warn "Agent Vault is not configured; nothing to attach"
 else
   say "A credential stays inert until a service binds it to a host."
-  vault_service npm-registry "registry.npmjs.org/*" NPM_TOKEN
   vault_service github-api "api.github.com/*" RELEASE_TOKEN
   note "Vault services:"
   vault_remote "vault service list" 2>/dev/null | sed 's/^/    /' || true

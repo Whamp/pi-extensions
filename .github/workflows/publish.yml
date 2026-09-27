@@ -23,6 +23,7 @@ concurrency:
 
 permissions:
   contents: write
+  id-token: write
 
 jobs:
   publish:
@@ -63,6 +64,9 @@ jobs:
 
       - name: Install pnpm from packageManager
         run: corepack prepare --activate
+
+      - name: Use npm with trusted publishing support
+        run: npm install --global npm@11.17.0
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -123,8 +127,6 @@ jobs:
       - name: Publish to npm
         if: ${{ steps.npm_exists.outputs.exists != 'true' && (github.event_name != 'workflow_dispatch' || inputs.dry_run == false) }}
         working-directory: ${{ steps.pkg.outputs.dir }}
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           set +e
           out=$(npm publish --access public 2>&1)
