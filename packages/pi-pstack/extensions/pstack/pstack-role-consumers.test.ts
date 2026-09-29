@@ -119,8 +119,13 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		lines: [
 			{
 				section: "## Step 3, Spawn Reviewers",
-				line: "Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present",
+				line: 'Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present',
 				roles: ["interrogate reviewers"],
+			},
+			{
+				section: "## Step 3, Spawn Reviewers",
+				line: '- agent: "reviewer"',
+				roles: [],
 			},
 		],
 	},
@@ -393,6 +398,39 @@ describe("pstack role consumers", () => {
 				}
 			}
 		}
+	});
+
+	it("keeps read-only routed workflows on the reviewer role", () => {
+		const readOnlySkills = [
+			"skills/how/SKILL.md",
+			"skills/why/SKILL.md",
+			"skills/reflect/SKILL.md",
+			"skills/interrogate/SKILL.md",
+		];
+		for (const rel of readOnlySkills) {
+			const text = readPackageFile(rel);
+			assert.equal(
+				text.includes('agent: "worker"'),
+				false,
+				`${rel} launches a write-capable worker for read-only review`,
+			);
+			assert.equal(
+				text.includes('agent: "reviewer"'),
+				true,
+				`${rel} must launch its inspect-only children on the reviewer role`,
+			);
+		}
+		const arena = readPackageFile("skills/arena/SKILL.md");
+		assert.equal(
+			arena.includes('input: { agent: "reviewer", task, model, async: true }'),
+			true,
+			"arena judge must use the reviewer role",
+		);
+		assert.equal(
+			(arena.match(/agent: "worker"/g) ?? []).length,
+			1,
+			"arena candidates write artifacts and stay on the worker role",
+		);
 	});
 
 	it("keeps v1-only role names in migration code, tests, and setup docs", () => {

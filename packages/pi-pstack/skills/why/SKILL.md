@@ -74,10 +74,10 @@ Source control is always available through git and `gh`. For the other six, clas
 
 Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. A child does not inherit ambient MCP or extension tools. Use a custom agent for a child-side lookup only when that agent explicitly lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`.
 
-Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await the investigators with `runs.all([{ key: "investigate-<category>", agent: "worker", task, model }])`, then return `runs.run("synthesize-why", { agent: "worker", task, model })` with their outputs. `N` is the number of evidence categories launched. Don't ask one agent to cover multiple categories.
+Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await the investigators with `runs.all([{ key: "investigate-<category>", agent: "reviewer", task, model }])`, then return `runs.run("synthesize-why", { agent: "reviewer", task, model })` with their outputs. `N` is the number of evidence categories launched. Don't ask one agent to cover multiple categories.
 
 Each investigator uses:
-- agent: "worker"
+- agent: "reviewer"
 - `model`: `why investigators` (default inherit-parent)
 - `task`: instruct the investigator to inspect only
 
@@ -121,7 +121,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 ## Step 4. Synthesize
 
 The same workflow launches `synthesize-why` after every investigator settles. It uses:
-- agent: "worker"
+- agent: "reviewer"
 - `model`: `why synthesizer` (default inherit-parent)
 
 The synthesizer gets:

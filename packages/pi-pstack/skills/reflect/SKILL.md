@@ -38,11 +38,11 @@ Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's sel
 | Tooling | `reflect tooling reviewer` (default inherit-parent) | `references/tooling-reviewer.md` |
 | Divergent | `reflect divergent reviewer` (default inherit-parent) | `references/divergent-reviewer.md` |
 
-Each reviewer item uses `agent: "worker"`, its configured model, and a task that says to inspect only. Pass each template verbatim, substituting the transcript path or the bounded digest where marked. Reviewers return findings through their workflow results.
+Each reviewer item uses `agent: "reviewer"`, its configured model, and a task that says to inspect only. Pass each template verbatim, substituting the transcript path or the bounded digest where marked. Reviewers return findings through their workflow results.
 
 ### 3. Synthesize
 
-The workflow's `synthesize-reviews` child uses `agent: "worker"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.
+The workflow's `synthesize-reviews` child uses `agent: "reviewer"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.
 
 ### 4. Structural enforcement check
 
