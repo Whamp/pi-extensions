@@ -11,7 +11,7 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DISCOVERABLE = ["how", "typescript-best-practices", "unslop", "why"];
+export const DISCOVERABLE = ["how", "typescript-best-practices", "unslop", "why", "code-review"];
 
 const EXTENSION_COMMANDS = new Set(["/poteto-mode", "/setup-pstack", "/pstack"]);
 
@@ -35,6 +35,7 @@ export const CLASS_RULES = [
 	{ pattern: "README.md", class: "never-copy" },
 	{ pattern: "LICENSE", class: "never-copy" },
 
+	{ pattern: "skills/code-review/**", class: "pi-only" },
 	{ pattern: "skills/deslop/**", class: "pi-only" },
 	{ pattern: "skills/setup-pstack/**", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/check-plan.mjs", class: "pi-only" },
@@ -360,7 +361,7 @@ export const SEAMS = [
 	},
 	{
 		id: "slash-skill",
-		cursor: /(?<![\w/])\/([a-z][a-z0-9-]*)\b/g,
+		cursor: /(?<![\w/])\/([a-z][a-z0-9-]*)\b(?![/\w-])/g,
 		pi: (m, name) => {
 			if (EXTENSION_COMMANDS.has(`/${name}`)) return m;
 			if (!skillNamesForSlash.has(name)) return m;
@@ -539,16 +540,35 @@ const POTETO_INTRO = [
 
 const SUBAGENT_DEFAULTS = [
 	'**Defaults for every child launch.** Set `input.async: true` for background work. Pass file pointers instead of inlining context. Select an explicit model per role when `/setup-pstack` configures one. Multiple children or dependent stages use one `subagent({ action: "execute", input: { workflowScript, ... } })` call. Inside the script, use `await runs.all([{ key: "stable-key", ... }])` for fan-out and `return runs.run("stable-key", { ... })` for a direct or final child. Count every later synthesis or review child in `input.maxSubagentSpawnsPerRun` when the workflow sets that limit.',
-	"A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent for `why`, `reflect`, and `interrogate` unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools.",
-	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Configured roles resolved through `model-routing` override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case.",
+	"A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent for `why`, `reflect`, `interrogate`, and `code-review` unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools.",
+	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Configured roles resolved through `model-routing` override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case. The `code-review` coordinator uses the caller's `model-routing`, spending, and family policy for Audit and adds no model role. Challenge mode reuses the existing `interrogate reviewers` role.",
 ].join("\n\n");
 
 const RETIRED_POTETO_EVIDENCE_BULLET =
 	"- **Every claim carries its evidence or its label in the same sentence.** Measured, inferred, or guess. A prediction or an unseen cause is a guess. Never hand the human a check you could run.";
 
+const POTETO_CODE_REVIEW_ROUTING = [
+	"## Code review routing",
+	"",
+	"Read `../code-review/SKILL.md` relative to this skill directory for every route below. Use that file, not the globally registered skill name.",
+	"",
+	"- Ordinary requests to review a PR, diff, branch, or changes since a point use `code-review` Audit. A bare `review` also uses Audit.",
+	"- Ask for a missing Audit base. Do not guess. A named PR supplies immutable base and head commits.",
+	"- Use Challenge only for an explicit adversarial or design-interrogation request. Run Audit and Challenge when the user asks for both.",
+	"- Challenge can review pinned design contents without a Git base.",
+	"- PR-status requests such as `check on PR X` use the Babysit playbook.",
+].join("\n");
+
 function patchPotetoModePi(text) {
 	if (!text.includes("`/poteto-mode` enables this mode")) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
+	}
+	if (!text.includes("## Code review routing")) {
+		const anchor = "## Non-negotiables\n";
+		if (!text.includes(anchor)) {
+			throw new Error("Poteto caller guidance is missing its routing insertion point");
+		}
+		text = text.replace(anchor, `${POTETO_CODE_REVIEW_ROUTING}\n\n${anchor}`);
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
 	return text.replace(`${RETIRED_POTETO_EVIDENCE_BULLET}\n`, "");
@@ -729,6 +749,36 @@ export function applyAtomicRoleTransforms(text, rel) {
 }
 
 const PI_CALLER_GUIDANCE_REPLACEMENTS = [
+	{
+		rel: "skills/poteto-mode/SKILL.md",
+		pattern: /^- Contested design → the \*\*interrogate\*\* skill \(multi-model adversarial\) before shipping\.$/m,
+		replacement: "- Contested design → read `../code-review/SKILL.md` relative to this skill directory and use Challenge before shipping.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/feature.md",
+		pattern: /^7\. If the design is contested, `interrogate` before shipping\.$/m,
+		replacement: "7. If the design is contested, read `../../code-review/SKILL.md` relative to this playbook's directory. Use Challenge before shipping.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/bug-fix.md",
+		pattern: /before the step-3 architect\/interrogate fan-out\./,
+		replacement: "before the step-3 `architect` and Pstack Challenge fan-out. For Challenge, read `../../code-review/SKILL.md` relative to this playbook's directory.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
+		pattern: /A subagent that opens a PR runs `interrogate`/,
+		replacement: "A subagent that opens a PR first reads `../../code-review/SKILL.md` relative to this playbook's directory. It runs that coordinator in Challenge mode",
+	},
+	{
+		rel: "skills/architect/SKILL.md",
+		pattern: /For adversarial pressure on the design before implementing, run the (?:`interrogate`|\*\*interrogate\*\*) skill on the synthesized sketch\./g,
+		replacement: "For adversarial pressure on the design before implementing, read `../code-review/SKILL.md` relative to this skill directory. Use Challenge on the synthesized sketch.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		pattern: /Which PRs get `pstack\/skills\/how\/SKILL\.md` and `pstack\/skills\/interrogate\/SKILL\.md`\./,
+		replacement: "Which PRs get `pstack/skills/how/SKILL.md` and `../../code-review/SKILL.md` in Challenge mode. Resolve the coordinator path relative to this playbook's directory.",
+	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:

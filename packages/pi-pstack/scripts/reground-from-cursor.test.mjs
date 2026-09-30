@@ -15,6 +15,16 @@ import {
 } from "./reground-from-cursor.mjs";
 
 const SKILL_BODY = "# fixture skill body\n";
+const POTETO_FIXTURE_BODY = [
+	"# Poteto mode",
+	"",
+	"## Non-negotiables",
+	"",
+	"Remaining triggers:",
+	"",
+	"- Contested design → the **interrogate** skill (multi-model adversarial) before shipping.",
+	"",
+].join("\n");
 const UPSTREAM_POTETO_EVIDENCE_BULLET =
 	"- **Every claim carries its evidence or its label in the same sentence.** Measured, inferred, or guess. A prediction or an unseen cause is a guess. Never hand the human a check you could run.";
 const UPSTREAM_POTETO_DEFAULTS =
@@ -23,7 +33,7 @@ const UPSTREAM_POTETO_DEFAULTS =
 const CURSOR_FILES = {
 	"skills/how/SKILL.md": SKILL_BODY,
 	"skills/how/references/explainer.md": SKILL_BODY,
-	"skills/poteto-mode/SKILL.md": SKILL_BODY,
+	"skills/poteto-mode/SKILL.md": POTETO_FIXTURE_BODY,
 	"skills/poteto-mode/playbooks/bug-fix.md": SKILL_BODY,
 	"skills/poteto-mode/playbooks/feature.md": SKILL_BODY,
 	"skills/principle-laziness-protocol/SKILL.md": SKILL_BODY,
@@ -36,29 +46,30 @@ const CURSOR_FILES = {
 };
 
 const PI_STALE_FILES = {
+	"skills/code-review/SKILL.md": SKILL_BODY,
 	"skills/how/SKILL.md": SKILL_BODY,
 	"skills/how/references/critic-prompt.md": SKILL_BODY,
 	"skills/how/references/critique-rubric.md": SKILL_BODY,
-	"skills/poteto-mode/SKILL.md": SKILL_BODY,
+	"skills/poteto-mode/SKILL.md": POTETO_FIXTURE_BODY,
 	"skills/poteto-mode/playbooks/feature.md": SKILL_BODY,
 	"skills/poteto-mode/playbooks/autonomous-run.md": SKILL_BODY,
 	"skills/legacy-skill/SKILL.md": SKILL_BODY,
 	"skills/deslop/SKILL.md": SKILL_BODY,
 	"skills/setup-pstack/SKILL.md": SKILL_BODY,
-	"README.md": "- **47 skills**, 23 playbooks, 23 principle skills, not all 47.\n",
+	"README.md": "- **7 skills**, 2 playbooks, 2 principle skills, not all 7.\n",
 	"extensions/pstack/config.ts": 'export const ROLES = ["how critics", "arena runners"];\n',
 	"extensions/pstack/skill-catalog.test.ts":
-		"assert.equal(skills.length, 47);\n" +
-		"assert.equal(skills.filter((skill) => skill.hidden).length, 43);\n" +
-		"assert.equal(hidden.length, 43);\n",
+		"assert.equal(skills.length, 7);\n" +
+		"assert.equal(skills.filter((skill) => skill.hidden).length, 4);\n" +
+		"assert.equal(hidden.length, 4);\n",
 };
 
 const PI_SYNCED_FILES = {
 	...PI_STALE_FILES,
-	"README.md": "- **7 skills**, 2 playbooks, 2 principle skills, not all 7.\n",
+	"README.md": "- **8 skills**, 2 playbooks, 2 principle skills, not all 8.\n",
 	"extensions/pstack/config.ts": 'export const ROLES = ["arena runners"];\n',
 	"extensions/pstack/skill-catalog.test.ts":
-		"assert.equal(skills.length, 7);\n" +
+		"assert.equal(skills.length, 8);\n" +
 		"assert.equal(skills.filter((skill) => skill.hidden).length, 3);\n" +
 		"assert.equal(hidden.length, 3);\n",
 };
@@ -130,6 +141,11 @@ test("classify maps Cursor-relative paths to copy classes", () => {
 		"copy",
 	);
 	assert.equal(classify(asRelPath("skills/how/SKILL.md")), "adapt");
+	assert.equal(classify(asRelPath("skills/code-review/SKILL.md")), "pi-only");
+	assert.equal(
+		classify(asRelPath("skills/code-review/references/code-review-audit.md")),
+		"pi-only",
+	);
 	assert.equal(classify(asRelPath("skills/setup-pstack/SKILL.md")), "pi-only");
 	assert.equal(classify(asRelPath("skills/setup-pstack/references/MODEL-ROLES.md")), "pi-only");
 	assert.equal(classify(asRelPath("skills/make-bot-ui/SKILL.md")), "never-copy");
@@ -175,8 +191,8 @@ test("plan dry-run maps the fixture Cursor tree to write, skip, and delete actio
 		"skills/poteto-mode/playbooks/autonomous-run.md",
 	]);
 
-	assert.equal(planned.counts.total, 7);
-	assert.equal(planned.counts.discoverable, 4);
+	assert.equal(planned.counts.total, 8);
+	assert.equal(planned.counts.discoverable, 5);
 	assert.equal(planned.counts.hidden, 3);
 	assert.equal(planned.counts.principles, 2);
 	assert.equal(planned.counts.playbooks, 2);
@@ -208,6 +224,49 @@ test("plan dry-run derives count and config patches only for a stale destination
 		[],
 	);
 	assert.deepEqual(synced.counts, stale.counts);
+});
+
+test("plan/apply preserves the Pi-only coordinator and converges skill counts", () => {
+	const coordinator = "# code-review coordinator fixture\n";
+	const outputs = [];
+	for (const name of ["count-run-a", "count-run-b"]) {
+		const files = { ...PI_STALE_FILES };
+		delete files["skills/legacy-skill/SKILL.md"];
+		const destination = makeTree(name, {
+			...files,
+			"skills/code-review/SKILL.md": coordinator,
+		});
+		const first = plan({ from: cursorDir, to: destination, dryRun: false });
+		assert.deepEqual(first.counts, {
+			total: 8,
+			discoverable: 5,
+			hidden: 3,
+			principles: 2,
+			playbooks: 2,
+		});
+		apply(first);
+
+		assert.equal(readFileSync(join(destination, "skills/code-review/SKILL.md"), "utf8"), coordinator);
+		assert.equal(
+			readFileSync(join(destination, "README.md"), "utf8"),
+			"- **8 skills**, 2 playbooks, 2 principle skills, not all 8.\n",
+		);
+		assert.equal(
+			readFileSync(join(destination, "extensions/pstack/skill-catalog.test.ts"), "utf8"),
+			"assert.equal(skills.length, 8);\n" +
+				"assert.equal(skills.filter((skill) => skill.hidden).length, 3);\n" +
+				"assert.equal(hidden.length, 3);\n",
+		);
+		const repeated = plan({ from: cursorDir, to: destination, dryRun: false });
+		assert.deepEqual(repeated.counts, first.counts);
+		apply(repeated);
+		outputs.push([
+			readFileSync(join(destination, "skills/code-review/SKILL.md"), "utf8"),
+			readFileSync(join(destination, "README.md"), "utf8"),
+			readFileSync(join(destination, "extensions/pstack/skill-catalog.test.ts"), "utf8"),
+		]);
+	}
+	assert.deepEqual(outputs[1], outputs[0]);
 });
 
 test("pinned upstream caller guidance regenerates shipped files byte-for-byte", () => {
@@ -438,6 +497,8 @@ test("renderWrite matches Poteto defaults and removes retired reply guidance", (
 			"",
 			"# Poteto mode",
 			"",
+			"## Non-negotiables",
+			"",
 			"## Subagents",
 			"",
 			'**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers).',
@@ -468,6 +529,26 @@ test("renderWrite matches Poteto defaults and removes retired reply guidance", (
 		assert.equal(text.includes("injected pstack role table"), false);
 		assert.equal(text.includes("The role table is injected"), false);
 	}
+	const routeStart = generated.indexOf("## Code review routing\n");
+	const routeEnd = generated.indexOf("## Non-negotiables\n", routeStart);
+	assert.notEqual(routeStart, -1);
+	assert.ok(routeEnd > routeStart);
+	assert.equal(
+		generated.slice(routeStart, routeEnd),
+		[
+			"## Code review routing",
+			"",
+			"Read `../code-review/SKILL.md` relative to this skill directory for every route below. Use that file, not the globally registered skill name.",
+			"",
+			"- Ordinary requests to review a PR, diff, branch, or changes since a point use `code-review` Audit. A bare `review` also uses Audit.",
+			"- Ask for a missing Audit base. Do not guess. A named PR supplies immutable base and head commits.",
+			"- Use Challenge only for an explicit adversarial or design-interrogation request. Run Audit and Challenge when the user asks for both.",
+			"- Challenge can review pinned design contents without a Git base.",
+			"- PR-status requests such as `check on PR X` use the Babysit playbook.",
+			"",
+			"",
+		].join("\n"),
+	);
 });
 
 const CALLER_GUIDANCE_CONCEPTS = [
@@ -478,6 +559,58 @@ const CALLER_GUIDANCE_CONCEPTS = [
 			'Spawn subagent({ action: "execute", input: { agent: "poteto-agent", task } }) for this task.',
 		],
 		forbiddenCursor: ["subagent_type"],
+	},
+	{
+		rel: "skills/poteto-mode/SKILL.md",
+		cursor: "- Contested design → the **interrogate** skill (multi-model adversarial) before shipping.",
+		requiredPi: [
+			"- Contested design → read `../code-review/SKILL.md` relative to this skill directory and use Challenge before shipping.",
+		],
+		forbiddenCursor: ["**interrogate** skill"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/feature.md",
+		cursor: "7. If the design is contested, `interrogate` before shipping.",
+		requiredPi: [
+			"7. If the design is contested, read `../../code-review/SKILL.md` relative to this playbook's directory. Use Challenge before shipping.",
+		],
+		forbiddenCursor: ["`interrogate` before shipping"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/bug-fix.md",
+		cursor:
+			"Confirm the surviving *mechanism* with runtime evidence before the step-3 architect/interrogate fan-out.",
+		requiredPi: [
+			"Confirm the surviving *mechanism* with runtime evidence before the step-3 `architect` and Pstack Challenge fan-out. For Challenge, read `../../code-review/SKILL.md` relative to this playbook's directory.",
+		],
+		forbiddenCursor: ["architect/interrogate fan-out"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
+		cursor:
+			"A subagent that opens a PR runs `interrogate`, `/deslop`, and `/no-comments`, and posts the URL.",
+		requiredPi: [
+			"A subagent that opens a PR first reads `../../code-review/SKILL.md` relative to this playbook's directory. It runs that coordinator in Challenge mode, `/skill:deslop`, and `/skill:no-comments`, and posts the URL.",
+		],
+		forbiddenCursor: ["runs `interrogate`"],
+	},
+	{
+		rel: "skills/architect/SKILL.md",
+		cursor:
+			"For adversarial pressure on the design before implementing, run the `interrogate` skill on the synthesized sketch.",
+		requiredPi: [
+			"For adversarial pressure on the design before implementing, read `../code-review/SKILL.md` relative to this skill directory. Use Challenge on the synthesized sketch.",
+		],
+		forbiddenCursor: ["`interrogate` skill"],
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
+		cursor:
+			"Which PRs get `pstack/skills/how/SKILL.md` and `pstack/skills/interrogate/SKILL.md`.",
+		requiredPi: [
+			"Which PRs get `pstack/skills/how/SKILL.md` and `../../code-review/SKILL.md` in Challenge mode. Resolve the coordinator path relative to this playbook's directory.",
+		],
+		forbiddenCursor: ["pstack/skills/interrogate/SKILL.md"],
 	},
 	{
 		rel: "skills/no-comments/SKILL.md",
@@ -921,9 +1054,41 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 ];
 
+test("slash skill commands leave relative file paths intact", () => {
+	plan({ from: cursorDir, to: packageRoot, dryRun: true });
+	const source = "Run `/how`. Read `../how/SKILL.md` or `../../code-review/SKILL.md`.";
+	const expected = "Run `/skill:how`. Read `../how/SKILL.md` or `../../code-review/SKILL.md`.";
+	assert.equal(applyBodyTransforms(source), expected);
+});
+
+test("Pstack caller review paths bypass global skill names", () => {
+	const callers = CALLER_GUIDANCE_CONCEPTS.filter(
+		(concept) => concept.cursor.includes("interrogate") && concept.requiredPi.join("\n").includes("code-review/SKILL.md"),
+	);
+	assert.equal(callers.length, 6);
+	const coordinator = join(packageRoot, "skills/code-review/SKILL.md");
+	for (const { rel } of callers) {
+		const caller = join(packageRoot, rel);
+		const text = readFileSync(caller, "utf8");
+		assert.equal(text.includes("/skill:code-review"), false, `${rel} must bypass name lookup`);
+		const pointers = [...text.matchAll(/`((?:\.\.\/)+code-review\/SKILL\.md)`/g)];
+		assert.ok(pointers.length > 0, `${rel} must name its packaged coordinator`);
+		for (const [, pointer] of pointers) {
+			const target = resolve(dirname(caller), pointer);
+			assert.equal(target, coordinator, `${rel} must resolve from its own directory`);
+			assert.ok(readFileSync(target, "utf8").includes("## Run Challenge"));
+		}
+	}
+});
+
 test("adapt transforms Cursor caller guidance to catalog workflows", () => {
 	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
 		const transformed = applyBodyTransforms(concept.cursor, concept.rel);
+		assert.equal(
+			applyBodyTransforms(transformed, concept.rel),
+			transformed,
+			`${concept.rel} caller transform must be idempotent`,
+		);
 		for (const required of concept.requiredPi) {
 			assert.equal(
 				transformed.includes(required),

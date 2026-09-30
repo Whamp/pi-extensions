@@ -22,25 +22,25 @@ pi install ~/projects/pi-extensions/packages/pi-pstack
 This package is ported from the Cursor pstack plugin by Lauren Tan
 (`LICENSE`).
 
-Requires [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) for the `poteto-agent`, `comment-sicko`, and workflow fan-outs (`how`, `why`, `arena`, `swarm`, `interrogate`, `reflect`).
+Requires [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) for the `poteto-agent`, `comment-sicko`, and workflow fan-outs (`how`, `why`, `arena`, `swarm`, `interrogate`, `reflect`, `code-review`).
 
 ## Get started
 
 1. Run `/setup-pstack` once to pick which models each role uses (optional; every role inherits the parent session model otherwise).
 2. Use `/poteto-mode` for sticky Poteto Mode. It stays on until `/poteto-mode off`. `/skill:poteto-mode` also enables it.
-3. Run `/pstack off` to hide even the four Discoverable skills (`how`, `why`, `unslop`, `typescript-best-practices`) from the Skill catalog.
+3. Run `/pstack off` to hide even the five Discoverable skills (`code-review`, `how`, `why`, `unslop`, `typescript-best-practices`) from the Skill catalog.
    Off persists in `~/.pi/agent/pstack/models.json`.
    `/skill:<name>` keeps working.
-   `/pstack on` restores those four, not all 47.
+   `/pstack on` restores those five, not all 48.
 
 That is it.
 The other skills are Hidden; the mode skill uses them as needed.
 
 ## What you get
 
-- **47 skills**, including:
+- **48 skills**, including:
   - `poteto-mode`: the main entry point. Reads your request, matches one of 23 playbooks (bug fix, perf, feature, refactoring, investigation, shipping, orchestrate, autopilot, and more), copies its steps in verbatim, and routes to the other skills as steps fire. Orchestrate refills one shared worker-and-verifier window as each child settles.
-  - Workflow skills: `how`, `why`, `recall`, `blast-radius`, `architect`, `arena`, `swarm`, `interrogate`, `reflect`, `teach`, `tdd`, `no-comments`, `unslop`, `deslop`, `bro`, `figure-it-out`, `show-me-your-work`, `create-verification-skill`, `maintain-verification-skill`, `automate-me`, `technical-writing`, `typescript-best-practices`.
+  - Workflow skills: `code-review`, `how`, `why`, `recall`, `blast-radius`, `architect`, `arena`, `swarm`, `interrogate`, `reflect`, `teach`, `tdd`, `no-comments`, `unslop`, `deslop`, `bro`, `figure-it-out`, `show-me-your-work`, `create-verification-skill`, `maintain-verification-skill`, `automate-me`, `technical-writing`, `typescript-best-practices`.
   - 23 principle skills (`principle-laziness-protocol`, `principle-model-the-domain`, `principle-prove-it-works`, ...), one rule each, indexed inline by `poteto-mode`.
 - **`ask_user_question`**: one structured preference question with 2-6 listed options. The user can pick those or type a different answer.
 - **2 subagents** (loaded by pi-subagents):
@@ -56,12 +56,31 @@ Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pst
 
 - Hidden skills set `disable-model-invocation: true`, so they stay out of the Skill catalog.
   `/skill:name` still loads the Skill body.
-  The four Discoverable skills are `how`, `why`, `unslop`, and `typescript-best-practices`.
+  The five Discoverable skills are `code-review`, `how`, `why`, `unslop`, and `typescript-best-practices`.
 - Slash commands are `/skill:<name>` instead of `/name`.
 - Subagent delegation uses pi-subagents. Launch one child with `subagent({ action: "execute", input: { agent, task } })`. Set `input.async: true` for background work. Run parallel or dependent children in one `workflowScript` with stable keys. This package does not ship the `subagent` tool.
 - Session transcripts live under `~/.pi/agent/sessions/--<slug>--/` instead of Cursor `agent-transcripts/`. The active file is `$PI_SESSION_FILE`. `<slug>` is the absolute cwd with the leading slash dropped and each `/` turned into `-`. Stay inside that workspace directory. Do not glob sibling slugs.
 - The benny automation pack is not ported; it depends on Cursor automations. Model roles live in `~/.pi/agent/pstack/models.json`, written by `/setup-pstack` and read on demand through `model-routing`.
 - `make-bot-ui` is not ported. It is Cursor Grok Bot / routine webhook UI.
+
+## Code review coordinator
+
+`code-review` uses Audit for ordinary review requests. It uses Challenge only for explicit adversarial or design interrogation. Requests for both run both routes. PR-status requests stay with the existing Babysit playbook. Audit findings follow `skills/code-review/references/code-review-audit.md`; Challenge reuses the existing `interrogate` skill. The coordinator adds no model role or review registry.
+
+The coordinator uses these routes both inside and outside sticky Poteto Mode when Pstack skills are enabled:
+
+| Request | Route |
+| --- | --- |
+| "Review this PR" or "review since X" | Audit. Resolve the PR's base and head, or ask for a missing base. |
+| "Review against the issue" | Audit. Pin the base and the issue requirements. |
+| "Challenge the design" | Challenge on the pinned design contents. |
+| "Open a PR" | Opening a PR playbook. Keep its existing Challenge requirement and do not add Audit. |
+| "Check on PR X" | Babysit, not a code review. |
+| "Audit and challenge this change" | Audit + challenge, with independent results. |
+
+Audit launches one Standards and one Spec child for each caller-selected model. Explicitly absent specs skip Spec. Challenge keeps one child per configured Interrogate reviewer. With both requested, the counts add; one route does not erase the other.
+
+An older `code-review` skill may also appear from a global installation under `~/.agents/skills/code-review`. This change does not alter that installation. While both copies exist, load this package's `skills/code-review/SKILL.md` by its absolute path. A name collision can resolve `/skill:code-review` to the older copy. After the Pstack source is integrated and published, replace the global entry through its installer and verify each affected consumer. Do not remove a shared installation before those consumers have the replacement. Do not run both copies as separate reviewers.
 
 ## Related port
 
