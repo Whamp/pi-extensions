@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "skills");
-const DISCOVERABLE = ["how", "typescript-best-practices", "unslop", "why"];
+const DISCOVERABLE = ["code-review", "how", "typescript-best-practices", "unslop", "why"];
 
 type SkillFrontmatter = {
 	name: string;
@@ -35,9 +35,9 @@ function loadSkills(): SkillFrontmatter[] {
 }
 
 describe("pstack skill catalog", () => {
-	it("lists only how, why, unslop, and typescript-best-practices as Discoverable skills", () => {
+	it("lists code-review, how, why, unslop, and typescript-best-practices as Discoverable skills", () => {
 		const skills = loadSkills();
-		assert.equal(skills.length, 47);
+		assert.equal(skills.length, 48);
 		const discoverable = skills.filter((skill) => !skill.hidden).map((skill) => skill.name).sort();
 		assert.deepEqual(discoverable, DISCOVERABLE);
 		assert.equal(skills.filter((skill) => skill.hidden).length, 43);
