@@ -30,7 +30,7 @@ jobs:
         run: corepack prepare --activate
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: pnpm install --frozen-lockfile --config.auto-install-peers=false
 
       - name: Package hygiene check
         run: pnpm check

@@ -22,10 +22,11 @@ Each package declares its Pi entry point in `package.json`. The root manifest lo
 
 ## Local development
 
-From the monorepo root:
+From the monorepo root, disable automatic peer installation to match the lockfile.
+Keep this pnpm option on the install command, not in `.npmrc`, because Pi uses npm for Git installs.
 
 ```bash
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --config.auto-install-peers=false
 pnpm check
 pnpm test
 ```
