@@ -22,6 +22,7 @@ const expectedPiManifest = {
     "./packages/pi-todos/extensions/todos/index.ts",
     "./packages/pi-tokps/extensions/tokps/index.ts",
     "./packages/pi-jev-pruner/extensions/jev-pruner/index.ts",
+    "./packages/pi-subscription-quota/extensions/subscription-quota/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
   subagents: {
