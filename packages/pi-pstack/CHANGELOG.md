@@ -1,5 +1,12 @@
 # @whamp/pi-pstack
 
+## 0.9.1
+
+### Patch Changes
+
+- acf3ed3: Preserve upstream skill invocation settings instead of forcing Pi discovery. Restore user-only settings for how, why, unslop, and typescript-best-practices, and add the corresponding Codex controls. Keep explicit commands and Poteto Mode routes unchanged.
+- 5bfa973: Add a discoverable code-review coordinator with separate Audit and Challenge routes.
+
 ## 0.9.0
 
 ### Minor Changes
