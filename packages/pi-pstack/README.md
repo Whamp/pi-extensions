@@ -28,10 +28,10 @@ Requires [`pi-subagents`](https://www.npmjs.com/package/pi-subagents) for the `p
 
 1. Run `/setup-pstack` once to pick which models each role uses (optional; every role inherits the parent session model otherwise).
 2. Use `/poteto-mode` for sticky Poteto Mode. It stays on until `/poteto-mode off`. `/skill:poteto-mode` also enables it.
-3. Run `/pstack off` to hide even the five Discoverable skills (`code-review`, `how`, `why`, `unslop`, `typescript-best-practices`) from the Skill catalog.
+3. Run `/pstack off` to hide the Pi-only `code-review` coordinator from the Skill catalog.
    Off persists in `~/.pi/agent/pstack/models.json`.
    `/skill:<name>` keeps working.
-   `/pstack on` restores those five, not all 48.
+   `/pstack on` restores `code-review`, not all 48.
 
 That is it.
 The other skills are Hidden; the mode skill uses them as needed.
@@ -54,9 +54,11 @@ Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pst
 
 ## Differences from the Cursor plugin
 
-- Hidden skills set `disable-model-invocation: true`, so they stay out of the Skill catalog.
-  `/skill:name` still loads the Skill body.
-  The five Discoverable skills are `code-review`, `how`, `why`, `unslop`, and `typescript-best-practices`.
+- The importer preserves upstream invocation settings. Change upstream behavior only for a necessary Pi adaptation or an explicitly approved exception.
+  `how`, `why`, `unslop`, and `typescript-best-practices` retain upstream's `disable-model-invocation: true`.
+  Their `agents/openai.yaml` files also set `policy.allow_implicit_invocation: false` for Codex.
+  `/skill:name` still loads the Skill body, and Poteto Mode keeps its explicit skill routes.
+  The Pi-only `code-review` coordinator remains model-visible.
 - Slash commands are `/skill:<name>` instead of `/name`.
 - Subagent delegation uses pi-subagents. Launch one child with `subagent({ action: "execute", input: { agent, task } })`. Set `input.async: true` for background work. Run parallel or dependent children in one `workflowScript` with stable keys. This package does not ship the `subagent` tool.
 - Session transcripts live under `~/.pi/agent/sessions/--<slug>--/` instead of Cursor `agent-transcripts/`. The active file is `$PI_SESSION_FILE`. `<slug>` is the absolute cwd with the leading slash dropped and each `/` turned into `-`. Stay inside that workspace directory. Do not glob sibling slugs.

@@ -11,8 +11,6 @@ import {
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
-export const DISCOVERABLE = ["how", "typescript-best-practices", "unslop", "why", "code-review"];
-
 const EXTENSION_COMMANDS = new Set(["/poteto-mode", "/setup-pstack", "/pstack"]);
 
 const CURSOR_FRONTMATTER_KEYS = new Set(["mode", "icon", "color", "reminder", "paths"]);
@@ -35,6 +33,7 @@ export const CLASS_RULES = [
 	{ pattern: "README.md", class: "never-copy" },
 	{ pattern: "LICENSE", class: "never-copy" },
 
+	{ pattern: "skills/*/agents/openai.yaml", class: "pi-only" },
 	{ pattern: "skills/code-review/**", class: "pi-only" },
 	{ pattern: "skills/deslop/**", class: "pi-only" },
 	{ pattern: "skills/setup-pstack/**", class: "pi-only" },
@@ -241,12 +240,12 @@ export const SEAMS = [
 	{
 		id: "readonly-true",
 		cursor: /`readonly`: `true`/g,
-		pi: '`task`: instruct the child to inspect only and not modify files',
+		pi: "`task`: instruct the child to inspect only and not modify files",
 	},
 	{
 		id: "readonly-false",
 		cursor: /`readonly`: `false`/g,
-		pi: '`task`: state whether the child may modify files',
+		pi: "`task`: state whether the child may modify files",
 	},
 	{
 		id: "create-skill-builtin",
@@ -609,10 +608,21 @@ export function plan(paths) {
 	}
 
 	const dirs = skillDirsAfter(paths.to, actions);
+	const discoverable = [...dirs].filter((name) => {
+		const rel = `skills/${name}/SKILL.md`;
+		const imported = actions.some((action) => action.kind === "write" && action.rel === rel);
+		const path = join(imported ? paths.from : paths.to, rel);
+		if (!existsSync(path)) {
+			return false;
+		}
+		const frontmatter =
+			readFileSync(path, "utf8").match(/^---\n([\s\S]*?)\n---(?:\n|$)/)?.[1] ?? "";
+		return !/^disable-model-invocation:\s*true\s*$/m.test(frontmatter);
+	}).length;
 	const counts = {
 		total: dirs.size,
-		discoverable: DISCOVERABLE.length,
-		hidden: dirs.size - DISCOVERABLE.length,
+		discoverable,
+		hidden: dirs.size - discoverable,
 		principles: [...dirs].filter((name) => name.startsWith("principle-")).length,
 		playbooks: playbookCountAfter(paths.to, actions),
 	};
@@ -661,7 +671,8 @@ function frontmatterKey(line) {
 	return i === -1 ? "" : line.slice(0, i).trim();
 }
 
-export function applyFrontmatterPolicy(text, skillDir) {
+/** Remove Cursor-only metadata while preserving upstream skill invocation settings. */
+export function applyFrontmatterPolicy(text) {
 	if (!text.startsWith("---\n")) return text;
 	const close = text.indexOf("\n---\n", 4);
 	if (close === -1) return text;
@@ -670,15 +681,7 @@ export function applyFrontmatterPolicy(text, skillDir) {
 		.slice(4, close)
 		.split("\n")
 		.map((line) => line.replace(/^name:\s*"?Poteto Mode"?\s*$/, "name: poteto-mode"))
-		.filter((line) => {
-			const key = frontmatterKey(line);
-			if (CURSOR_FRONTMATTER_KEYS.has(key)) return false;
-			if (key === "disable-model-invocation") return false;
-			return true;
-		});
-	if (!DISCOVERABLE.includes(skillDir)) {
-		lines.push("disable-model-invocation: true");
-	}
+		.filter((line) => !CURSOR_FRONTMATTER_KEYS.has(frontmatterKey(line)));
 	while (lines.length && lines[lines.length - 1] === "") lines.pop();
 	return `---\n${lines.join("\n")}\n---\n${body}`;
 }
@@ -751,82 +754,91 @@ export function applyAtomicRoleTransforms(text, rel) {
 const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	{
 		rel: "skills/poteto-mode/SKILL.md",
-		pattern: /^- Contested design → the \*\*interrogate\*\* skill \(multi-model adversarial\) before shipping\.$/m,
-		replacement: "- Contested design → read `../code-review/SKILL.md` relative to this skill directory and use Challenge before shipping.",
+		pattern:
+			/^- Contested design → the \*\*interrogate\*\* skill \(multi-model adversarial\) before shipping\.$/m,
+		replacement:
+			"- Contested design → read `../code-review/SKILL.md` relative to this skill directory and use Challenge before shipping.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/feature.md",
 		pattern: /^7\. If the design is contested, `interrogate` before shipping\.$/m,
-		replacement: "7. If the design is contested, read `../../code-review/SKILL.md` relative to this playbook's directory. Use Challenge before shipping.",
+		replacement:
+			"7. If the design is contested, read `../../code-review/SKILL.md` relative to this playbook's directory. Use Challenge before shipping.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/bug-fix.md",
 		pattern: /before the step-3 architect\/interrogate fan-out\./,
-		replacement: "before the step-3 `architect` and Pstack Challenge fan-out. For Challenge, read `../../code-review/SKILL.md` relative to this playbook's directory.",
+		replacement:
+			"before the step-3 `architect` and Pstack Challenge fan-out. For Challenge, read `../../code-review/SKILL.md` relative to this playbook's directory.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
 		pattern: /A subagent that opens a PR runs `interrogate`/,
-		replacement: "A subagent that opens a PR first reads `../../code-review/SKILL.md` relative to this playbook's directory. It runs that coordinator in Challenge mode",
+		replacement:
+			"A subagent that opens a PR first reads `../../code-review/SKILL.md` relative to this playbook's directory. It runs that coordinator in Challenge mode",
 	},
 	{
 		rel: "skills/architect/SKILL.md",
-		pattern: /For adversarial pressure on the design before implementing, run the (?:`interrogate`|\*\*interrogate\*\*) skill on the synthesized sketch\./g,
-		replacement: "For adversarial pressure on the design before implementing, read `../code-review/SKILL.md` relative to this skill directory. Use Challenge on the synthesized sketch.",
+		pattern:
+			/For adversarial pressure on the design before implementing, run the (?:`interrogate`|\*\*interrogate\*\*) skill on the synthesized sketch\./g,
+		replacement:
+			"For adversarial pressure on the design before implementing, read `../code-review/SKILL.md` relative to this skill directory. Use Challenge on the synthesized sketch.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		pattern: /Which PRs get `pstack\/skills\/how\/SKILL\.md` and `pstack\/skills\/interrogate\/SKILL\.md`\./,
-		replacement: "Which PRs get `pstack/skills/how/SKILL.md` and `../../code-review/SKILL.md` in Challenge mode. Resolve the coordinator path relative to this playbook's directory.",
+		pattern:
+			/Which PRs get `pstack\/skills\/how\/SKILL\.md` and `pstack\/skills\/interrogate\/SKILL\.md`\./,
+		replacement:
+			"Which PRs get `pstack/skills/how/SKILL.md` and `../../code-review/SKILL.md` in Challenge mode. Resolve the coordinator path relative to this playbook's directory.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:
 			/^The parent finds its own transcript file before fanning out\. The system prompt names the active workspace's `agent-transcripts\/` directory\. Use that path\. Do not glob across `~\/\.cursor\/projects\/\*\/`\. That crosses workspace boundaries and reads private chats from unrelated projects\.\n\n```bash\nls -t <agent-transcripts>\/\*\.jsonl <agent-transcripts>\/\*\/\*\.jsonl <agent-transcripts>\/\*\/subagents\/\*\.jsonl 2>\/dev\/null \| head -10\n```\n\nThree transcript layouts: legacy flat \(`<id>\.jsonl`\), current nested \(`<id>\/<id>\.jsonl`\), and subagent \(`<parent>\/subagents\/<child>\.jsonl`\)\.\n\nFor each candidate, read the first JSONL line and check that `message\.content\[0\]\.text` contains the conversation's opening user prompt\. Take the matching path\. If no path resolves, write a tight digest of the session and pass that instead\.$/m,
 		replacement:
-			"The parent finds its own transcript file before fanning out. Prefer `$PI_SESSION_FILE` for the current session. Workspace transcripts live at `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.\n\n```bash\nls -t ~/.pi/agent/sessions/--<slug>--/*.jsonl 2>/dev/null | head -10\n```\n\nEach file is JSONL. Confirm a candidate by finding the conversation's opening user prompt in its first user message. Take the matching path. If no path resolves, write a tight digest of the session and pass that instead.",
+			'The parent finds its own transcript file before fanning out. Prefer `$PI_SESSION_FILE` for the current session. Workspace transcripts live at `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.\n\n```bash\nls -t ~/.pi/agent/sessions/--<slug>--/*.jsonl 2>/dev/null | head -10\n```\n\nEach file is JSONL. Confirm a candidate by finding the conversation\'s opening user prompt in its first user message. Take the matching path. If no path resolves, write a tight digest of the session and pass that instead.',
 	},
 	{
 		rel: "skills/recall/SKILL.md",
 		pattern:
 			/^Transcripts live at `~\/\.cursor\/projects\/<slug>\/agent-transcripts\/<uuid>\/<uuid>\.jsonl`, where `<slug>` is the workspace path with the leading slash dropped and each "\/" turned into "-" \(so `\/Users\/you\/proj` becomes `Users-you-proj`\)\. Every line is one chat message\.$/m,
 		replacement:
-			"Transcripts live at `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\" (so `/Users/you/proj` becomes `Users-you-proj`). Prefer `$PI_SESSION_FILE` for the current session. Each file is JSONL. Stay inside that workspace directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`.",
+			'Transcripts live at `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-" (so `/Users/you/proj` becomes `Users-you-proj`). Prefer `$PI_SESSION_FILE` for the current session. Each file is JSONL. Stay inside that workspace directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`.',
 	},
 	{
 		rel: "skills/automate-me/SKILL.md",
 		pattern:
 			/^Locate the active workspace's transcripts before fanning out\. The system prompt names the workspace's `agent-transcripts\/` directory\. Use only that path\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That crosses workspace boundaries and reads private chats from unrelated projects\.$/m,
 		replacement:
-			"Locate the active workspace's transcripts before fanning out. Use `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+			'Locate the active workspace\'s transcripts before fanning out. Use `~/.pi/agent/sessions/--<slug>--/`, where `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.',
 	},
 	{
 		rel: "skills/show-me-your-work/SKILL.md",
 		pattern:
 			/^At the end of the run, before handing back, check the log told the truth\. Read this run's transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\)\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That reads unrelated private chats\. Walk the log against what actually happened:$/m,
 		replacement:
-			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk the log against what actually happened:",
+			'At the end of the run, before handing back, check the log told the truth. Read this run\'s transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk the log against what actually happened:',
 	},
 	{
 		rel: "skills/show-me-your-work/SKILL.md",
 		pattern:
 			/^At the end of the run, before handing back, check the log told the truth\. Read this run's transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\)\. Don't glob across `~\/\.cursor\/projects\/\*\/`\. That reads unrelated private chats\. Walk this run's rows against what actually happened\. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:$/m,
 		replacement:
-			"At the end of the run, before handing back, check the log told the truth. Read this run's transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk this run's rows against what actually happened. Each stretch of them begins at one of this run's `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:",
+			'At the end of the run, before handing back, check the log told the truth. Read this run\'s transcript. Prefer `$PI_SESSION_FILE`. Otherwise use `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That reads unrelated private chats. Walk this run\'s rows against what actually happened. Each stretch of them begins at one of this run\'s `start` rows, or at the first row if this run created the log, and ends at the next `start` row of another run:',
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/session-pickup.md",
 		pattern:
 			/A local transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names the path\. Do not glob across `~\/\.cursor\/projects\/\*\/`, that crosses workspace boundaries and reads private chats from unrelated projects\), a cloud-agent URL, or a pushed branch\./,
 		replacement:
-			"A local transcript under `~/.pi/agent/sessions/--<slug>--/` (prefer `$PI_SESSION_FILE` for the current session. `<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`, that crosses workspace boundaries and reads private chats from unrelated projects), an async run record, or a pushed branch.",
+			'A local transcript under `~/.pi/agent/sessions/--<slug>--/` (prefer `$PI_SESSION_FILE` for the current session. `<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-". Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`, that crosses workspace boundaries and reads private chats from unrelated projects), an async run record, or a pushed branch.',
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/eval.md",
 		pattern:
 			/Read each candidate's local transcript under the active workspace's `agent-transcripts\/` directory \(the system prompt names this path\)\. Do not glob across `~\/\.cursor\/projects\/\*\/`\. That crosses workspace boundaries and reads private chats from unrelated projects\./,
 		replacement:
-			"Read each candidate's local transcript under `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each \"/\" turned into \"-\"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.",
+			'Read each candidate\'s local transcript under `~/.pi/agent/sessions/--<slug>--/` (`<slug>` is the workspace path with the leading slash dropped and each "/" turned into "-"). Stay inside that directory. Do not glob sibling slugs under `~/.pi/agent/sessions/`. That crosses workspace boundaries and reads private chats from unrelated projects.',
 	},
 	{
 		rel: "skills/no-comments/SKILL.md",
@@ -885,7 +897,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~\/\.cursor\/rules\/pstack-models\.mdc` when present\. Otherwise use `claude-fable-5-1-thinking-max`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
 		replacement:
-			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"reviewer\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
+			'After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent\'s. Launch the judge with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.',
 	},
 	{
 		rel: "skills/arena/SKILL.md",
@@ -927,7 +939,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model \(default `claude-fable-5-1-thinking-max`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer\.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$/m,
 		replacement:
-			'The workflow\'s `synthesize-reviews` child uses `agent: "worker"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer\'s full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.',
+			"The workflow's `synthesize-reviews` child uses `agent: \"worker\"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
@@ -968,7 +980,8 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Spawn one investigator per category that has a matching MCP\. Each owns exactly one tool or MCP\.$/m,
-		replacement: "Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns exactly one evidence packet.",
+		replacement:
+			"Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns exactly one evidence packet.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
@@ -994,7 +1007,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the highest-reasoning tier of the same family\), spawn with the valid slug, and open a separate PR to update the configured value or default table\. Do not block the review on the slug issue\. If the configured value is `inherit-parent` or `auto`, omit `model` instead\. Never treat those aliases as broken slugs or enter this fallback for them\.$/m,
 		replacement:
-			"If an explicit model selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.",
+			'If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.',
 	},
 	{
 		rel: "skills/poteto-mode/SKILL.md",
@@ -1026,7 +1039,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/ \(nesting works to depth 3, and a nested spawn has the full Task schema including `environment`\)/,
 		replacement:
-			'. Nesting works to depth 3. A custom sub-coordinator agent must list `subagent` in its tool allowlist. It must also list each extension tool and load its provider through `extensions` or `subagentOnlyExtensions`',
+			". Nesting works to depth 3. A custom sub-coordinator agent must list `subagent` in its tool allowlist. It must also list each extension tool and load its provider through `extensions` or `subagentOnlyExtensions`",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
@@ -1199,7 +1212,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
 		replacement:
-			"After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: \"execute\", input: { agent: \"reviewer\", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.",
+			'After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent\'s. Launch the judge with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.',
 	},
 	{
 		rel: "skills/architect/SKILL.md",
@@ -1213,7 +1226,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^4\. Pick the worker model from the `swarm workers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, use `grok-4\.7-xhigh-fast`\. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\. For a model race, name each arm's model up front\.$/m,
 		replacement:
-			"4. Pick the worker model from `swarm workers` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. For `auto` or `inherit-parent`, omit `model`. If an explicit selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. For a model race, name each arm's model up front.",
+			'4. Pick the worker model from `swarm workers` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. For `auto` or `inherit-parent`, omit `model`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. For a model race, name each arm\'s model up front.',
 	},
 	{
 		rel: "skills/swarm/SKILL.md",
@@ -1255,7 +1268,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^One `Task` call, `subagent_type: generalPurpose`, with `model` from the `reflect judgment, divergent, synthesizer` line \(default `claude-opus-5-5-max`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$/m,
 		replacement:
-			'The workflow\'s `synthesize-reviews` child uses `agent: "worker"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer\'s full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.',
+			"The workflow's `synthesize-reviews` child uses `agent: \"worker\"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -1269,7 +1282,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^If the Task tool rejects a configured entry, run that reviewer on the table default of its family and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use Reviewer A's default\. If it rejects a table default, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the highest-reasoning tier of the same family\), spawn with it, and open a separate PR to update the default table\. Do not block the review on the slug issue\. Never treat an alias entry as a rejected slug or apply either fallback to it\.$/m,
 		replacement:
-			"If an explicit model selector is unavailable, inspect `subagent({ action: \"models\", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.",
+			'If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.',
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -1310,9 +1323,8 @@ export function renderWrite(action, paths) {
 	let text = readFileSync(src, "utf8");
 	const parts = action.rel.split("/");
 	const base = parts[parts.length - 1];
-	const skillDir = parts[0] === "skills" ? parts[1] : "";
 	if (base === "SKILL.md") {
-		text = applyFrontmatterPolicy(text, skillDir);
+		text = applyFrontmatterPolicy(text);
 	}
 	if (action.rel === "skills/poteto-mode/SKILL.md") {
 		text = patchPotetoModePi(text);
@@ -1429,7 +1441,8 @@ const LEGACY_PI_CALLER_GUIDANCE_RULES = [
 	},
 	{
 		id: "unawaited-runs-all-guidance",
-		pattern: /\b(?:In `workflowScript`, (?:use|launch)[^`\n]*|Inside the script, use|Use) `runs\.all\(\[/,
+		pattern:
+			/\b(?:In `workflowScript`, (?:use|launch)[^`\n]*|Inside the script, use|Use) `runs\.all\(\[/,
 	},
 	{
 		id: "task-tool-launch-language",
@@ -1498,19 +1511,6 @@ export function assertNoCursorSeams(destRoot) {
 		if (/Don't glob across `~\/\.pi\/agent\/sessions\/`/.test(text))
 			leftover.push(`${rel}: inverted sessions glob`);
 		if (/from \./.test(text)) leftover.push(`${rel}: from .`);
-		const parts = rel.split("/");
-		if (parts[parts.length - 1] !== "SKILL.md") continue;
-		const skillDir = parts[1];
-		const close = text.startsWith("---\n") ? text.indexOf("\n---\n", 4) : -1;
-		const fm = close === -1 ? "" : text.slice(4, close);
-		const hidden = /^disable-model-invocation:\s*true\s*$/m.test(fm);
-		if (DISCOVERABLE.includes(skillDir)) {
-			if (/^disable-model-invocation\s*:/m.test(fm)) {
-				leftover.push(`${rel}: Discoverable skill must omit disable-model-invocation`);
-			}
-		} else if (!hidden) {
-			leftover.push(`${rel}: Hidden skill missing disable-model-invocation`);
-		}
 	}
 	if (leftover.length) {
 		throw new Error(`cursor seams remain:\n${leftover.join("\n")}`);

@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { fileURLToPath } from "node:url";
 
 const SKILLS_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "skills");
-const DISCOVERABLE = ["code-review", "how", "typescript-best-practices", "unslop", "why"];
+const DISCOVERABLE = ["code-review"];
 
 type SkillFrontmatter = {
 	name: string;
@@ -35,17 +35,20 @@ function loadSkills(): SkillFrontmatter[] {
 }
 
 describe("pstack skill catalog", () => {
-	it("lists code-review, how, why, unslop, and typescript-best-practices as Discoverable skills", () => {
+	it("keeps only the Pi-only code-review coordinator model-visible", () => {
 		const skills = loadSkills();
 		assert.equal(skills.length, 48);
-		const discoverable = skills.filter((skill) => !skill.hidden).map((skill) => skill.name).sort();
+		const discoverable = skills
+			.filter((skill) => !skill.hidden)
+			.map((skill) => skill.name)
+			.sort();
 		assert.deepEqual(discoverable, DISCOVERABLE);
-		assert.equal(skills.filter((skill) => skill.hidden).length, 43);
+		assert.equal(skills.filter((skill) => skill.hidden).length, 47);
 	});
 
 	it("keeps a Skill body for every Hidden skill so /skill:name can load it", () => {
 		const hidden = loadSkills().filter((skill) => skill.hidden);
-		assert.equal(hidden.length, 43);
+		assert.equal(hidden.length, 47);
 		for (const skill of hidden) {
 			assert.ok(skill.body.trim().length > 0, `${skill.name}: empty Skill body`);
 		}
