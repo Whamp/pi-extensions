@@ -52,7 +52,7 @@ run `/reload`.
 ```bash
 git clone https://github.com/Whamp/pi-extensions.git
 cd pi-extensions
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --config.auto-install-peers=false
 pnpm check
 pnpm test
 ```
