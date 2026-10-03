@@ -47,8 +47,61 @@ For a newer update, first approve and pin its full source revision. Never substi
     > "$EVIDENCE/plan-check.txt" 2>&1
   cp "$RUN/plan.md" "$EVIDENCE/plan.md"
   ```
-- **Orchestrate:** first inspect scripts/bootstrap.ts. It installs dependencies unless its commander package and content-derived install key are current. A copied workspace can also contain broken dependency symlinks. Check resolution before invoking the CLI: run `(cd "$RUN/regrounded/skills/poteto-mode/scripts" && bun -e 'await import("commander"); await import("typebox/value"); console.log("CLI_DEPENDENCIES_READY")') > "$EVIDENCE/cli-module-doctor.txt" 2>&1`. If either resolution or the key check fails, request scratch-only dependency-install approval. After approval, run `(cd "$RUN/regrounded/skills/poteto-mode/scripts" && bun install --frozen-lockfile) > "$EVIDENCE/bun-provision.txt" 2>&1`, then run help and recheck readiness. Do not let even --help silently install. Use the scratch copy, not the source package: run `bun "$RUN/regrounded/skills/poteto-mode/scripts/orch/orch.ts" --help > "$EVIDENCE/orch-help.txt" 2>&1`. Read the actual installed command help before selecting commands. Use --store or ORCH_STORE with an absolute RUN-owned path, never a shared program store. Capture commands, store changes and failure behavior. Do not merge, create production PRs, or run Graphite to satisfy a smoke test. The Lane-only candidate forbids dependent PR stacks and Graphite. Store-only commands require no GitHub access; remote snapshot verification requires gh auth and an approved PR inventory. Follow [independent-pr-coordination.md](independent-pr-coordination.md) for exact local ledger and head checks.
+- **Orchestrate:** follow [Scratch CLI preparation](#scratch-cli-preparation) before any CLI invocation. That section creates a missing scratch copy, checks the bootstrap key and module resolution, separates approved provisioning from the read-only doctor, and captures help. Read the actual command help before selecting commands. Use --store or ORCH_STORE with an absolute RUN-owned path, never a shared program store. Capture commands, store changes and failure behavior. Do not merge, create production PRs, or run Graphite to satisfy a smoke test. The Lane-only candidate forbids dependent PR stacks and Graphite. Store-only commands require no GitHub access; remote snapshot verification requires gh auth and an approved PR inventory. Follow [independent-pr-coordination.md](independent-pr-coordination.md) for exact local ledger and head checks.
 - **Change-specific runtime:** map each changed workflow's documented entry points to real bounded Pi tasks and effects. Verify workers/verifiers, exact head identity, approval gates and single-writer ownership when affected. Preserve evidence through teardown. Don't silently swap the denied backend or reduce reviewer breadth.
+
+### Scratch CLI preparation
+
+This section works directly after Launch; it does not require an upstream download or a previous sync recipe. First inspect `$PACKAGE/skills/poteto-mode/scripts/bootstrap.ts`: even help installs unless commander and the content-derived key are current. Do not invoke the CLI to discover readiness. Reuse the scratch copy if Preview already created it; otherwise create it now:
+
+```bash
+if [ ! -e "$RUN/regrounded" ]; then
+  cp -a "$PACKAGE" "$RUN/regrounded"
+fi
+export CLI_SCRIPTS="$RUN/regrounded/skills/poteto-mode/scripts"
+test -f "$CLI_SCRIPTS/orch/orch.ts"
+
+check_scratch_cli_ready() (
+  cd "$CLI_SCRIPTS" || exit 1
+  bun -e '
+    import { createHash } from "node:crypto";
+    import { existsSync, readFileSync } from "node:fs";
+    const keyPath = "node_modules/.poteto-mode-tools-install-key";
+    const expected = createHash("sha256")
+      .update(readFileSync("package.json")).update("\0")
+      .update(readFileSync("bun.lock")).digest("hex");
+    if (!existsSync("node_modules/commander/package.json") ||
+        !existsSync(keyPath) || readFileSync(keyPath, "utf8").trim() !== expected) {
+      throw new Error("Scratch CLI bootstrap key missing or stale");
+    }
+    await import("commander");
+    await import("typebox/value");
+    console.log("CLI_DEPENDENCIES_READY");
+  '
+)
+check_scratch_cli_ready > "$EVIDENCE/cli-readiness-before.txt" 2>&1
+```
+
+Require exit zero. If this check fails, stop and request scratch-only dependency-install approval. Without approval, record the CLI route as blocked. After approval only, remove the copied tool dependency directory (not the source directory) to avoid writing through copied symlinks. Install the frozen dependencies first because the CLI imports typebox before bootstrap can run. Then invoke the real bootstrap through help. **Both commands are provisioning, not the doctor:** bootstrap may repeat the frozen install before writing its own key and restarting. Plain `bun install` alone does not establish that key; do not manufacture it manually.
+
+```bash
+test "$CLI_SCRIPTS" = "$RUN/regrounded/skills/poteto-mode/scripts" &&
+  rm -rf -- "$CLI_SCRIPTS/node_modules" &&
+  (cd "$CLI_SCRIPTS" && bun install --frozen-lockfile) \
+    > "$EVIDENCE/bun-provision.txt" 2>&1 &&
+  bun "$CLI_SCRIPTS/orch/orch.ts" --help \
+    > "$EVIDENCE/cli-bootstrap-provision.txt" 2>&1 &&
+  check_scratch_cli_ready > "$EVIDENCE/cli-readiness-after.txt" 2>&1
+```
+
+Require the whole chain to exit zero; inspect and stop on failure. Whether initially ready or provisioned, repeat the read-only readiness check before the help doctor:
+
+```bash
+check_scratch_cli_ready > "$EVIDENCE/cli-readiness-doctor.txt" 2>&1 &&
+  bun "$CLI_SCRIPTS/orch/orch.ts" --help > "$EVIDENCE/orch-help.txt" 2>&1
+```
+
+Require exit zero, expected commands, and no bootstrap installation in this doctor. Retain provisioning and doctor output separately. If the selected bootstrap's key algorithm changes, update this check from that source before driving; an old recipe must not assert readiness for a different bootstrap.
 
 ## Gotchas
 
