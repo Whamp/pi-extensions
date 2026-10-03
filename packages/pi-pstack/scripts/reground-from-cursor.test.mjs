@@ -334,6 +334,50 @@ test("plan/apply preserves the Pi-only coordinator and converges skill counts", 
 	assert.deepEqual(outputs[1], outputs[0]);
 });
 
+for (const playbook of ["perf-issue", "hillclimb"]) {
+	test(`imports retain approved ${playbook} guidance while updating upstream content`, () => {
+		const rel = `skills/poteto-mode/playbooks/${playbook}.md`;
+		const approved = readFileSync(join(packageRoot, rel), "utf8");
+		const instruction = approved
+			.split("\n")
+			.find((line) => line.includes("~/.agents/skills/perform-like-jeff-and-sanjay/SKILL.md"));
+		assert.ok(instruction, "shipped playbook must contain the approved performance instruction");
+		const upstreamUpdate = "New upstream measurement requirement.\n\n";
+		const source = makeTree(`performance-upstream-${playbook}`, {
+			"skills/poteto-mode/SKILL.md": POTETO_FIXTURE_BODY,
+			[rel]: upstreamUpdate + approved.replace(`${instruction}\n`, ""),
+		});
+		const destination = makeTree(`performance-consumer-${playbook}`, {
+			"skills/poteto-mode/SKILL.md": POTETO_FIXTURE_BODY,
+			[rel]: approved,
+			"README.md": "**1 skills**, 1 playbooks, 0 principle skills, not all 1.\n",
+			"extensions/pstack/skill-catalog.test.ts":
+				"assert.equal(skills.length, 1);\n" +
+				"assert.equal(skills.filter((skill) => skill.hidden).length, 0);\n" +
+				"assert.equal(hidden.length, 0);\n",
+		});
+		plan({ from: source, to: destination, dryRun: true });
+		assert.equal(readFileSync(join(destination, rel), "utf8"), approved);
+		for (const pass of [1, 2]) {
+			apply(plan({ from: source, to: destination, dryRun: false }));
+			const imported = readFileSync(join(destination, rel), "utf8");
+			assert.equal(imported, upstreamUpdate + approved, `import pass ${pass}`);
+			assert.equal(applyBodyTransforms(imported, rel), imported, "do not duplicate guidance");
+		}
+	});
+
+	test(`imports reject a changed ${playbook} insertion point instead of losing guidance`, () => {
+		assert.throws(
+			() =>
+				applyBodyTransforms(
+					"Rewritten upstream workflow.\n",
+					`skills/poteto-mode/playbooks/${playbook}.md`,
+				),
+			/Approved performance guidance anchor missing:/,
+		);
+	});
+}
+
 test("pinned upstream caller guidance regenerates shipped files byte-for-byte", () => {
 	const destination = join(sandbox, "pinned-caller-guidance-output");
 	const destinationSkills = join(destination, "skills");
