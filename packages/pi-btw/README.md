@@ -22,7 +22,7 @@ The overlay blocks the parent TUI while open. The detached `/branch-tab` session
 This package lives in the [`pi-extensions`](https://github.com/Whamp/pi-extensions) monorepo. From the repository root:
 
 ```bash
-pnpm install --frozen-lockfile
+pnpm install --frozen-lockfile --config.auto-install-peers=false
 pnpm --filter @whamp/pi-btw test
 pnpm check
 ```
