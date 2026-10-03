@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 
+import { isAbsolute } from "node:path";
 import { ensureDependenciesInstalled } from "../bootstrap.ts";
 import {
   NotFoundError,
@@ -134,19 +135,14 @@ function pointerLine(pointer: InboxPointer): string {
 }
 
 function gateLine(gate: OpenGate): string {
-  return [
-    gate.id,
-    gate.question,
-    gate.options,
-    gate.defaultAnswer,
-  ].join("\t");
+  return [gate.id, gate.question, gate.options, gate.defaultAnswer].join("\t");
 }
 
 function compactRows<T>(
   rows: readonly T[],
   format: (row: T) => string,
   empty: string,
-  limit: number | null = DISPLAY_LIMIT
+  limit: number | null = DISPLAY_LIMIT,
 ): string {
   if (rows.length === 0) {
     return empty;
@@ -164,12 +160,9 @@ function frontierLine(value: Frontier): string {
     value.prs.length === 0
       ? "none"
       : value.prs
-          .map(
-            (row) =>
-              `${row.branches}#${row.pr}@${row.sha}:${row.state}`
-          )
+          .map((row) => `${row.branches}#${row.pr}@${row.sha}:${row.state}`)
           .join(",");
-  return `generation=${value.generation} prs=${prs} lowest-unmerged=${value.lowestUnmerged ?? "none"}`;
+  return `generation=${value.generation} repo=${value.repository?.url ?? "none"} default=${value.repository?.defaultBranch ?? "none"} prs=${prs}`;
 }
 
 function statusLines(report: StatusReport): string {
@@ -192,7 +185,7 @@ function emit<T>(
   json: boolean,
   value: T,
   compact: (result: T) => string,
-  jsonValue: (result: T) => unknown = (result) => result
+  jsonValue: (result: T) => unknown = (result) => result,
 ): void {
   const rendered = json
     ? JSON.stringify(jsonValue(value), null, 2)
@@ -204,6 +197,11 @@ function storeDirectory(program: Command): string {
   const value = program.opts<GlobalOptions>().store;
   if (value === undefined || value.trim().length === 0) {
     throw new UsageError("set --store <dir> or ORCH_STORE");
+  }
+  if (!isAbsolute(value)) {
+    throw new UsageError(
+      "--store or ORCH_STORE must be an absolute shared program directory",
+    );
   }
   return value;
 }
@@ -221,7 +219,7 @@ async function runStore<T>(
   io: Io,
   operation: (store: Store) => Promise<T>,
   compact: (result: T) => string,
-  jsonValue?: (result: T) => unknown
+  jsonValue?: (result: T) => unknown,
 ): Promise<void> {
   const options = program.opts<GlobalOptions>();
   const store = openStore(storeDirectory(program), {
@@ -260,9 +258,10 @@ function createProgram(io: Io): Command {
     .showHelpAfterError()
     .allowExcessArguments(false)
     .addOption(
-      new Option("--store <dir>", "store directory (or ORCH_STORE)").env(
-        "ORCH_STORE"
-      )
+      new Option(
+        "--store <dir>",
+        "absolute shared program directory (or ORCH_STORE)",
+      ).env("ORCH_STORE"),
     )
     .option("--json", "print complete rows as JSON", false)
     .option("--force", "steal an existing store lock", false);
@@ -272,8 +271,8 @@ function createProgram(io: Io): Command {
       program,
       io,
       (store) => store.init(),
-      (result) => `initialized ${result.store}`
-    )
+      (result) => `initialized ${result.store}`,
+    ),
   );
 
   const unit = program
@@ -293,8 +292,8 @@ function createProgram(io: Io): Command {
             track: options.track,
             brief: options.brief,
           }),
-        unitLine
-      )
+        unitLine,
+      ),
     );
   leaf(unit, "set <id>", "update a unit")
     .requiredOption("--state <state>", "unit state")
@@ -313,11 +312,11 @@ function createProgram(io: Io): Command {
             pr: options.pr,
             sha: options.sha,
           }),
-        unitLine
-      )
+        unitLine,
+      ),
     );
   leaf(unit, "get <id>", "get a unit").action((id: string) =>
-    runStore(program, io, (store) => store.units.get(id), unitLine)
+    runStore(program, io, (store) => store.units.get(id), unitLine),
   );
   leaf(unit, "list", "list units")
     .option("--state <state>", "filter by state")
@@ -327,11 +326,11 @@ function createProgram(io: Io): Command {
         program,
         io,
         (store) => store.units.list(options),
-        (rows) => compactRows(rows, unitLine, "(no units)")
-      )
+        (rows) => compactRows(rows, unitLine, "(no units)"),
+      ),
     );
   leaf(unit, "counts", "count units by state").action(() =>
-    runStore(program, io, (store) => store.units.counts(), countLine)
+    runStore(program, io, (store) => store.units.counts(), countLine),
   );
 
   const ledger = program
@@ -349,7 +348,7 @@ function createProgram(io: Io): Command {
         pr: number,
         sha: string,
         verdict: Verdict,
-        options: LedgerRecordOptions
+        options: LedgerRecordOptions,
       ) =>
         runStore(
           program,
@@ -362,8 +361,8 @@ function createProgram(io: Io): Command {
               evidence: options.evidence,
               verifier: options.verifier,
             }),
-          (row) => `${row.pr}\t${row.sha}\t${row.verdict}`
-        )
+          (row) => `${row.pr}\t${row.sha}\t${row.verdict}`,
+        ),
     );
   leaf(ledger, "check", "check a verification verdict")
     .argument("<pr>", "pull request number", positiveInteger)
@@ -373,11 +372,11 @@ function createProgram(io: Io): Command {
         program,
         io,
         (store) => store.ledger.check({ pr, sha }),
-        (row) => row.verdict
-      )
+        (row) => row.verdict,
+      ),
     );
   leaf(ledger, "summary", "count verification verdicts").action(() =>
-    runStore(program, io, (store) => store.ledger.summary(), countLine)
+    runStore(program, io, (store) => store.ledger.summary(), countLine),
   );
 
   const inbox = program
@@ -391,7 +390,7 @@ function createProgram(io: Io): Command {
         agent: string,
         unitId: string,
         status: string,
-        options: InboxPushOptions
+        options: InboxPushOptions,
       ) =>
         runStore(
           program,
@@ -405,8 +404,8 @@ function createProgram(io: Io): Command {
             }),
           (result) =>
             `${result.pointer.unit}\t${result.pointer.status}\t${result.filename}`,
-          (result) => result.pointer
-        )
+          (result) => result.pointer,
+        ),
     );
   leaf(inbox, "drain", "drain inbox pointers")
     .option("--peek", "read without draining", false)
@@ -414,10 +413,9 @@ function createProgram(io: Io): Command {
       runStore(
         program,
         io,
-        (store) =>
-          options.peek ? store.inbox.peek() : store.inbox.drain(),
-        (rows) => compactRows(rows, pointerLine, "(empty)", null)
-      )
+        (store) => (options.peek ? store.inbox.peek() : store.inbox.drain()),
+        (rows) => compactRows(rows, pointerLine, "(empty)", null),
+      ),
     );
   leaf(inbox, "count", "count inbox pointers").action(() =>
     runStore(
@@ -425,8 +423,8 @@ function createProgram(io: Io): Command {
       io,
       (store) => store.inbox.count(),
       String,
-      (count) => ({ count })
-    )
+      (count) => ({ count }),
+    ),
   );
 
   const gate = program
@@ -448,16 +446,16 @@ function createProgram(io: Io): Command {
             options: options.options,
             defaultAnswer: options.default,
           }),
-        (result) => `${result.id}\topen`
-      )
+        (result) => `${result.id}\topen`,
+      ),
     );
   leaf(gate, "list", "list open decision gates").action(() =>
     runStore(
       program,
       io,
       (store) => store.gates.list(),
-      (rows) => compactRows(rows, gateLine, "(no open gates)")
-    )
+      (rows) => compactRows(rows, gateLine, "(no open gates)"),
+    ),
   );
   leaf(gate, "resolve <id>", "resolve a decision gate")
     .requiredOption("--answer <answer>", "chosen answer")
@@ -466,25 +464,24 @@ function createProgram(io: Io): Command {
         program,
         io,
         (store) => store.gates.resolve({ id, answer: options.answer }),
-        (result) => `${result.id}\tresolved\t${result.answer}`
-      )
+        (result) => `${result.id}\tresolved\t${result.answer}`,
+      ),
     );
 
   const frontier = program
     .command("frontier")
-    .description("manage the Graphite stack frontier")
+    .description("manage the program PR snapshot")
     .action(() => requireSubcommand(program));
-  leaf(frontier, "set", "discover the Graphite stack and set the frontier")
+  leaf(frontier, "set", "refresh enrolled program PRs from GitHub")
     .addOption(
-      new Option(
-        "--repo <dir>",
-        "repository directory (or ORCH_REPO)"
-      ).env("ORCH_REPO")
+      new Option("--repo <dir>", "repository directory (or ORCH_REPO)").env(
+        "ORCH_REPO",
+      ),
     )
     .option(
       "--prs <n,...>",
-      "optional expected pull request order pin",
-      prList
+      "program PR inventory; must include all PRs recorded in units.tsv",
+      prList,
     )
     .action((options: FrontierSetOptions) =>
       runStore(
@@ -495,15 +492,15 @@ function createProgram(io: Io): Command {
             repo: frontierRepo(options),
             prs: options.prs,
           }),
-        frontierLine
-      )
+        frontierLine,
+      ),
     );
   leaf(frontier, "show", "show the frontier").action(() =>
-    runStore(program, io, (store) => store.frontier.show(), frontierLine)
+    runStore(program, io, (store) => store.frontier.show(), frontierLine),
   );
 
   leaf(program, "status", "render status.md and print a summary").action(() =>
-    runStore(program, io, (store) => store.status.render(), statusLines)
+    runStore(program, io, (store) => store.status.render(), statusLines),
   );
 
   const standing = program
@@ -519,17 +516,17 @@ function createProgram(io: Io): Command {
         compactRows(
           rows,
           (item: StandingLine) => `${item.number}. ${item.line}`,
-          "(no standing orders)"
-        )
-    )
+          "(no standing orders)",
+        ),
+    ),
   );
   leaf(standing, "add <line>", "add a standing order").action((line: string) =>
     runStore(
       program,
       io,
       (store) => store.standing.add({ line }),
-      (item) => `${item.number}. ${item.line}`
-    )
+      (item) => `${item.number}. ${item.line}`,
+    ),
   );
 
   program.action(() => requireSubcommand(program));
@@ -562,7 +559,7 @@ export async function main(
   io: Io = {
     stdout: (value) => process.stdout.write(value),
     stderr: (value) => process.stderr.write(value),
-  }
+  },
 ): Promise<number> {
   const program = createProgram(io);
   try {

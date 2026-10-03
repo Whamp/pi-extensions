@@ -1,0 +1,10 @@
+{
+  "extends": "../watch-pr/tsconfig.json",
+  "compilerOptions": {
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true
+  },
+  "include": ["*.ts"]
+}
