@@ -1,5 +1,11 @@
 # @whamp/pi-pstack
 
+## 0.10.0
+
+### Minor Changes
+
+- 93a3f86: Replace Graphite and manual dependent PR stacks with independent PR coordination. Follow repository branch tools, sequence dependent work after prerequisite merges, and retain review-only handoff. Select one shared absolute program directory. Snapshot enrolled PRs using GitHub's default branch and remote heads. Preserve the adapted workflow during upstream imports.
+
 ## 0.9.1
 
 ### Patch Changes
