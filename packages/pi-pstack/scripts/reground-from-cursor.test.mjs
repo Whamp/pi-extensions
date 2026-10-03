@@ -437,7 +437,7 @@ test("supported PR workflows do not prescribe Graphite or manual dependent branc
 		const body = readFileSync(join(packageRoot, rel), "utf8");
 		assert.doesNotMatch(
 			body,
-			/--base <parent-branch>|base it on the parent branch|git show origin\/main:pstack\//,
+			/--base <parent-branch>|base it on the parent branch|git show origin\/main:pstack\/|patch-id rule|unless the patch-id is unchanged/,
 			rel,
 		);
 	}
