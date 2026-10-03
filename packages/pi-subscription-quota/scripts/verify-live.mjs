@@ -200,6 +200,20 @@ async function directUsage(registry, provider, url, signal) {
 	return JSON.parse(text);
 }
 
+/** Keep raw provider disagreements out of quota verification unless diagnostics are requested. */
+export function createQuotaVerificationReport(
+	observations,
+	comparisons,
+	warning,
+	diagnostics = false,
+) {
+	const report = { observations, comparisons };
+	if (diagnostics && warning) {
+		report.warnings = [warning];
+	}
+	return report;
+}
+
 async function verifyLive() {
 	const runtime = await ModelRuntime.create({
 		authPath: join(getAgentDir(), 'auth.json'),
@@ -243,11 +257,14 @@ async function verifyLive() {
 		});
 	}
 	process.stdout.write(
-		JSON.stringify({
-			observations: result.structuredContent,
-			comparisons,
-			warnings: kimiEvidence.warning ? [kimiEvidence.warning] : [],
-		}) + '\n',
+		JSON.stringify(
+			createQuotaVerificationReport(
+				result.structuredContent,
+				comparisons,
+				kimiEvidence.warning,
+				process.argv.includes('--diagnostics'),
+			),
+		) + '\n',
 	);
 	if (
 		comparisons.some((comparison) => !comparison.matched) ||

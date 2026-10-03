@@ -1,6 +1,11 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { directZaiWindows, directKimiEvidence, compareQuotaWindows } from './verify-live.mjs';
+import {
+	directZaiWindows,
+	directKimiEvidence,
+	compareQuotaWindows,
+	createQuotaVerificationReport,
+} from './verify-live.mjs';
 
 const KIMI_PAYLOAD = {
 	usage: { limit: '100', used: '41', remaining: '59', resetTime: '2026-10-03T10:00:00Z' },
@@ -15,6 +20,27 @@ const KIMI_PAYLOAD = {
 		limit_5h: { used_ratio: 0.05, reset_time: '2026-10-02T23:00:00Z' },
 	},
 };
+
+test('default verification hides contradictory Kimi ratios; diagnostics must be explicit', () => {
+	const observations = [
+		{ provider: 'kimi-coding', windows: [{ minutes: 10080, remainingPct: 56 }] },
+	];
+	const comparisons = [{ provider: 'kimi-coding', matched: true }];
+	const warning = { reason: 'kimi_weekly_count_ratio_disagreement', ratioUsed: 0 };
+	assert.deepEqual(createQuotaVerificationReport(observations, comparisons, warning), {
+		observations,
+		comparisons,
+	});
+	assert.deepEqual(createQuotaVerificationReport(observations, comparisons, warning, true), {
+		observations,
+		comparisons,
+		warnings: [warning],
+	});
+	assert.deepEqual(createQuotaVerificationReport(observations, comparisons, undefined, true), {
+		observations,
+		comparisons,
+	});
+});
 
 test('live Kimi oracle separately flags weekly contradiction while accepting matching count fallback', () => {
 	assert.deepEqual(directKimiEvidence(KIMI_PAYLOAD), {

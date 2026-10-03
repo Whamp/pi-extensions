@@ -93,7 +93,13 @@ The verifier uses Pi's normal auth and models paths. OAuth renewal can update
 Pi's saved credentials. No private config is changed by the verifier itself.
 It compares ZAI and Kimi windows against direct authenticated usage responses,
 including weekly quota. It prints only sanitized observations and comparisons.
-A Kimi weekly count-versus-ratio disagreement appears as a separate warning.
-Matching CodexBar count fallback can pass despite that warning. A window mismatch
+Raw contradictory Kimi ratios are omitted from default output. Developers can
+add `--diagnostics` to expose a separate count-versus-ratio warning:
+
+```sh
+node --experimental-strip-types packages/pi-subscription-quota/scripts/verify-live.mjs --diagnostics
+```
+
+Matching CodexBar count fallback can pass despite that diagnostic warning. A window mismatch
 or non-fresh observation exits nonzero. Quota changes during the requests can
 require another verification run.
