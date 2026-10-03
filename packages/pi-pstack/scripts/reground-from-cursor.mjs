@@ -1329,6 +1329,31 @@ export function applyPiCallerGuidanceTransforms(text, rel) {
 	return text;
 }
 
+const SINGLE_PROGRAM_PERFORMANCE_GUIDANCE = [
+	{
+		rel: "skills/poteto-mode/playbooks/perf-issue.md",
+		beforeStep: /^3\. Plan the fix from the trace\./m,
+		instruction:
+			"   For a bottleneck within one executable program, read the installed `~/.agents/skills/perform-like-jeff-and-sanjay/SKILL.md` and use its Diagnose route before selecting the fix. Reuse existing measurements. Distributed-systems performance and ML-hardware tuning stay with domain-specific methods.",
+	},
+	{
+		rel: "skills/poteto-mode/playbooks/hillclimb.md",
+		beforeStep: /^5\. Loop, one hypothesis per iteration:/m,
+		instruction:
+			"   For performance within one executable program, read the installed `~/.agents/skills/perform-like-jeff-and-sanjay/SKILL.md` before the first attempt and use its gated causal hypothesis method for each attempt. Reuse existing measurements. Distributed-systems performance and ML-hardware tuning stay with domain-specific methods.",
+	},
+];
+
+// Reapply the approved local instructions without freezing the upstream playbooks.
+function applyPerformanceGuidance(text, rel) {
+	const guidance = SINGLE_PROGRAM_PERFORMANCE_GUIDANCE.find((entry) => entry.rel === rel);
+	if (!guidance || text.includes(guidance.instruction)) return text;
+	if (!guidance.beforeStep.test(text)) {
+		throw new Error(`Approved performance guidance anchor missing: ${rel}`);
+	}
+	return text.replace(guidance.beforeStep, `${guidance.instruction}\n$&`);
+}
+
 export function applyBodyTransforms(text, rel) {
 	text = applyPiCallerGuidanceTransforms(text, rel);
 	for (let i = 0; i < 20; i++) {
@@ -1337,7 +1362,7 @@ export function applyBodyTransforms(text, rel) {
 			next = next.replace(seam.cursor, seam.pi);
 		}
 		if (next === text) {
-			return applyAtomicRoleTransforms(next, rel);
+			return applyPerformanceGuidance(applyAtomicRoleTransforms(next, rel), rel);
 		}
 		text = next;
 	}
