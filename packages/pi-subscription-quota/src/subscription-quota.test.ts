@@ -244,17 +244,14 @@ test('ZAI preserves all three pools when the five-hour reset is unreported', () 
 });
 
 test('missing duration remains incomplete even with known usage', () => {
-	assert.deepEqual(
-		parseUsage('{"updatedAt":"2026-10-02T19:40:00Z","primary":{"usedPercent":4}}'),
-		{
-			provider: 'openai',
-			source: 'codex',
-			windows: [{ remainingPct: 96 }],
-			status: 'unknown',
-			observedAt: '2026-10-02T19:40:00Z',
-			reason: 'window_incomplete',
-		},
-	);
+	assert.deepEqual(parseUsage('{"updatedAt":"2026-10-02T19:40:00Z","primary":{"usedPercent":4}}'), {
+		provider: 'openai',
+		source: 'codex',
+		windows: [{ remainingPct: 96 }],
+		status: 'unknown',
+		observedAt: '2026-10-02T19:40:00Z',
+		reason: 'window_incomplete',
+	});
 });
 
 test('expired resets and old or future source timestamps mark windows stale', () => {

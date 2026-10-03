@@ -275,9 +275,7 @@ export function parseCodexbarUsage(
 	}
 	if (
 		!windows.length ||
-		windows.some(
-			(window) => window.remainingPct === undefined || window.minutes === undefined,
-		)
+		windows.some((window) => window.remainingPct === undefined || window.minutes === undefined)
 	) {
 		return { ...observation, status: 'unknown', observedAt, reason: 'window_incomplete' };
 	}
