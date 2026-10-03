@@ -5,7 +5,7 @@ Users select models for Pstack's 22 roles, or inherit the parent, and save a ver
 ## Sub-features
 
 - `setup-cancel`: cancelling leaves config untouched.
-- `setup-save`: completing all role prompts writes the selections.
+- `setup-save`: completing the role prompts and any required replacement confirmation writes the selections. Declining replacement writes nothing.
 - `setup-pools`: list roles allow more than one model.
 - `setup-recovery`: legacy/diagnostic sources require safe migration or confirmation and backup.
 
