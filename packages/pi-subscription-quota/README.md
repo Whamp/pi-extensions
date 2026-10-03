@@ -38,10 +38,10 @@ Missing usage never becomes 100% remaining. Synthetic placeholders stay absent.
 Observation status does not grant spending permission:
 
 - `fresh` means the source timestamp falls within the request interval, with five
-  seconds of clock tolerance, and all reported windows have usage, duration, and
-  a future reset.
+  seconds of clock tolerance, and all reported windows have usage and duration.
+  Reported resets must be in the future. Unreported resets remain absent.
 - `stale` retains windows but marks an out-of-interval timestamp or elapsed reset.
-- `unknown` marks a missing source timestamp or incomplete window evidence.
+- `unknown` marks a missing source timestamp or missing window usage or duration.
 - `unavailable` reports a coarse auth, process, output, or local failure reason.
 
 CodexBar owns provider quota interpretation. For Kimi, `note:"legacy_counts"`
