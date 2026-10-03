@@ -196,7 +196,7 @@ test('missing usage never manufactures 100% remaining and synthetic windows stay
 	assert.equal(unknown.windows[0]?.remainingPct, undefined);
 });
 
-test('missing observation time, empty observations, and missing reset fail closed', () => {
+test('missing observation time and empty observations fail closed', () => {
 	assert.deepEqual(parseUsage('{"primary":{"usedPercent":4}}'), {
 		provider: 'openai',
 		source: 'codex',
@@ -205,11 +205,55 @@ test('missing observation time, empty observations, and missing reset fail close
 		reason: 'timestamp_missing',
 	});
 	assert.equal(parseUsage('{"updatedAt":"2026-10-02T19:40:00Z"}').status, 'unknown');
-	assert.equal(
+});
+
+test('known usage and duration stay fresh with absent or null reset', () => {
+	for (const reset of ['', ',"resetsAt":null']) {
+		assert.deepEqual(
+			parseUsage(
+				`{"updatedAt":"2026-10-02T19:40:00Z","primary":{"usedPercent":4,"windowMinutes":300${reset}}}`,
+			),
+			{
+				provider: 'openai',
+				source: 'codex',
+				windows: [{ minutes: 300, remainingPct: 96 }],
+				status: 'fresh',
+				observedAt: '2026-10-02T19:40:00Z',
+			},
+		);
+	}
+});
+
+test('ZAI preserves all three pools when the five-hour reset is unreported', () => {
+	assert.deepEqual(
 		parseUsage(
-			'{"updatedAt":"2026-10-02T19:40:00Z","primary":{"usedPercent":4,"windowMinutes":300}}',
-		).status,
-		'unknown',
+			'{"updatedAt":"2026-10-02T19:40:00Z","primary":{"usedPercent":0,"windowMinutes":300},"secondary":{"usedPercent":0,"windowMinutes":10080,"resetsAt":"2026-10-03T19:40:00Z"},"extraRateWindows":[{"id":"zai-mcp","window":{"usedPercent":0,"windowMinutes":43200,"resetsAt":"2026-10-31T19:40:00Z"}}]}',
+			'zai',
+		),
+		{
+			provider: 'zai',
+			windows: [
+				{ minutes: 300, remainingPct: 100 },
+				{ minutes: 10080, remainingPct: 100, resetAt: '2026-10-03T19:40:00Z' },
+				{ minutes: 43200, remainingPct: 100, resetAt: '2026-10-31T19:40:00Z', kind: 'mcp' },
+			],
+			status: 'fresh',
+			observedAt: '2026-10-02T19:40:00Z',
+		},
+	);
+});
+
+test('missing duration remains incomplete even with known usage', () => {
+	assert.deepEqual(
+		parseUsage('{"updatedAt":"2026-10-02T19:40:00Z","primary":{"usedPercent":4}}'),
+		{
+			provider: 'openai',
+			source: 'codex',
+			windows: [{ remainingPct: 96 }],
+			status: 'unknown',
+			observedAt: '2026-10-02T19:40:00Z',
+			reason: 'window_incomplete',
+		},
 	);
 });
 
