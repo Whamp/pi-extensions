@@ -48,6 +48,18 @@ The other skills are Hidden; the mode skill uses them as needed.
   - `comment-sicko`: read-only comment reviewer that savors deletion. Usually invoked through the `no-comments` skill.
 - **Bundled scripts**: `poteto-mode/scripts/` ships the `orch` coordination CLI (orchestrate playbook) and the `watch-pr` watcher (babysit playbook). Both run under [bun](https://bun.sh).
 
+## Independent PR programs
+
+Coordination workflows use the repository's branch and worktree tool. Lane-adopted repositories use Lane. GitHub CLI handles PRs, checks, comments, and authorized remote merges. Graphite and manual dependent PR stacks are not part of these workflows.
+
+Run independent PRs in parallel. Every PR targets the actual default branch. Start dependent work after its prerequisite merges, or keep tightly coupled work in one PR. The former Autopilot-stack entry point now delivers a review-only queue of independent PRs.
+
+Choose one shared program directory under the primary checkout's `.pi/pstack/programs/<program-name>/`. Resolve it once to an absolute path and pass it through `ORCH_STORE` or `--store`. For records that must outlive a checkout or span repositories, use `~/.pi/pstack/programs/<project-id>/<program-name>/` with separate repository registers. Confirm that project-local records are Git-ignored.
+
+The `orch frontier set` command snapshots program PRs from GitHub. It uses PRs recorded in `units.tsv`, or `--prs` containing all recorded PRs. It never enrolls unrelated open PRs. Heads come from GitHub, not local branch tips. Refresh before checking a SHA-keyed verification result. The command preserves its previous snapshot on failed refreshes.
+
+These playbooks, the branch-workflow reference, and the orchestration helper are protected Pi-owned overlays. Upstream imports preserve them. See `skills/poteto-mode/references/branch-workflow.md`.
+
 ## Model roles
 
 Per-role model choices live in `~/.pi/agent/pstack/models.json`. Run `/setup-pstack` to write it. The 22 role names and cardinalities are in `skills/setup-pstack/references/MODEL-ROLES.md`. The extension does not inject model roles into the system prompt. Before delegation, use `model-routing` to read the role configuration and select a model under the caller's routing policy. Install that skill separately from `Whamp/skills`; it is not bundled here. Neither Poteto Mode nor the `/pstack` skills toggle controls role lookup. `inherit-parent` or `auto` runs on the parent session model.

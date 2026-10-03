@@ -37,3 +37,16 @@ jobs:
 
       - name: Unit tests
         run: pnpm test
+
+      - name: Setup Bun for Pstack tools
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.2
+
+      - name: Install Pstack tool dependencies
+        working-directory: packages/pi-pstack/skills/poteto-mode/scripts
+        run: bun install --frozen-lockfile
+
+      - name: Pstack tool types and regression tests
+        working-directory: packages/pi-pstack/skills/poteto-mode/scripts
+        run: bun run typecheck && bun run test

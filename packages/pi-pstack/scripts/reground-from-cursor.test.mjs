@@ -351,6 +351,13 @@ test("pinned upstream caller guidance regenerates shipped files byte-for-byte", 
 		writeFileSync(target, readFileSync(join(packageRoot, rel), "utf8"));
 	}
 
+	for (const rel of PINNED_CALLER_GUIDANCE_FILES) {
+		if (classify(asRelPath(rel)) !== "pi-only") continue;
+		const target = join(destination, rel);
+		mkdirSync(dirname(target), { recursive: true });
+		writeFileSync(target, readFileSync(join(packageRoot, rel), "utf8"));
+	}
+
 	apply(plan({ from: pinnedCallerGuidanceRoot, to: destination, dryRun: false }));
 
 	for (const rel of PINNED_CALLER_GUIDANCE_FILES) {
@@ -358,6 +365,80 @@ test("pinned upstream caller guidance regenerates shipped files byte-for-byte", 
 			readFileSync(join(destination, rel), "utf8"),
 			readFileSync(join(packageRoot, rel), "utf8"),
 			`${rel} drifted from pinned upstream regeneration`,
+		);
+	}
+});
+
+test("independent PR overlays survive hostile upstream replacements and missing counterparts", () => {
+	const overlays = [
+		"skills/poteto-mode/references/branch-workflow.md",
+		"skills/poteto-mode/playbooks/orchestrate.md",
+		"skills/poteto-mode/playbooks/autopilot-full.md",
+		"skills/poteto-mode/playbooks/autopilot-stack.md",
+		"skills/poteto-mode/playbooks/babysit.md",
+		"skills/poteto-mode/playbooks/shipping.md",
+		"skills/poteto-mode/playbooks/opening-a-pr.md",
+		"skills/poteto-mode/playbooks/multi-phase-plan.md",
+	];
+	const helper = "skills/poteto-mode/scripts/orch/store.ts";
+	const files = [...overlays, helper];
+	const local = Object.fromEntries(
+		files.map((rel) => [rel, readFileSync(join(packageRoot, rel), "utf8")]),
+	);
+	const metadata = Object.fromEntries(
+		["README.md", "extensions/pstack/config.ts", "extensions/pstack/skill-catalog.test.ts"].map(
+			(rel) => [rel, readFileSync(join(packageRoot, rel), "utf8")],
+		),
+	);
+	const rootRel = "skills/poteto-mode/SKILL.md";
+	const upstreamFiles = {
+		[rootRel]: readFileSync(join(pinnedCallerGuidanceRoot, rootRel), "utf8"),
+		...Object.fromEntries(
+			files.map((rel) => [rel, "Run gt restack and build a parent-branch chain.\n"]),
+		),
+	};
+	const from = makeTree("hostile-stack-upstream", upstreamFiles);
+	const to = makeTree("protected-independent-workflows", {
+		...local,
+		...metadata,
+		[rootRel]: readFileSync(join(packageRoot, rootRel), "utf8"),
+	});
+	for (let pass = 0; pass < 2; pass++) {
+		if (pass === 1) {
+			for (const rel of files) rmSync(join(from, rel));
+		}
+		apply(plan({ from, to, dryRun: false }));
+		for (const rel of files) {
+			assert.equal(classify(asRelPath(rel)), "pi-only");
+			assert.equal(readFileSync(join(to, rel), "utf8"), local[rel], rel);
+		}
+		const router = readFileSync(join(to, rootRel), "utf8");
+		assert.match(router, /references\/branch-workflow\.md/);
+		assert.match(router, /Review-only PR queue/);
+		assert.doesNotMatch(router, /contiguous verified run from the root|many stacked PRs/);
+	}
+});
+
+test("supported PR workflows do not prescribe Graphite or manual dependent branches", () => {
+	const helper = readFileSync(
+		join(packageRoot, "skills/poteto-mode/scripts/orch/store.ts"),
+		"utf8",
+	);
+	assert.doesNotMatch(helper, /execFileSync\("gt"|graphiteFrontier|parseGtBranches/);
+	for (const rel of [
+		"skills/poteto-mode/playbooks/orchestrate.md",
+		"skills/poteto-mode/playbooks/autopilot-full.md",
+		"skills/poteto-mode/playbooks/autopilot-stack.md",
+		"skills/poteto-mode/playbooks/babysit.md",
+		"skills/poteto-mode/playbooks/shipping.md",
+		"skills/poteto-mode/playbooks/opening-a-pr.md",
+		"skills/poteto-mode/playbooks/multi-phase-plan.md",
+	]) {
+		const body = readFileSync(join(packageRoot, rel), "utf8");
+		assert.doesNotMatch(
+			body,
+			/--base <parent-branch>|base it on the parent branch|git show origin\/main:pstack\//,
+			rel,
 		);
 	}
 });
@@ -379,9 +460,9 @@ test("shipped Pi caller guidance is not remapped as Cursor source", () => {
 });
 
 test("generated Orchestrate workflow refills on completion and hands off matching evidence", async () => {
-	const generated = renderWrite(
-		{ rel: "skills/poteto-mode/playbooks/orchestrate.md", class: "adapt" },
-		{ from: pinnedCallerGuidanceRoot },
+	const generated = readFileSync(
+		join(packageRoot, "skills/poteto-mode/playbooks/orchestrate.md"),
+		"utf8",
 	);
 	assert.match(
 		generated,
@@ -1146,7 +1227,9 @@ test("Pstack caller review paths bypass global skill names", () => {
 });
 
 test("adapt transforms Cursor caller guidance to catalog workflows", () => {
-	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
+	for (const concept of CALLER_GUIDANCE_CONCEPTS.filter(
+		(entry) => classify(asRelPath(entry.rel)) !== "pi-only",
+	)) {
 		const transformed = applyBodyTransforms(concept.cursor, concept.rel);
 		assert.equal(
 			applyBodyTransforms(transformed, concept.rel),
@@ -1182,7 +1265,9 @@ test("caller remapping preserves unrelated prose for every concept and context",
 		},
 	];
 
-	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
+	for (const concept of CALLER_GUIDANCE_CONCEPTS.filter(
+		(entry) => classify(asRelPath(entry.rel)) !== "pi-only",
+	)) {
 		for (const [contextIndex, context] of contexts.entries()) {
 			const input = `${context.before}\n\n${concept.cursor}\n\n${context.after}`;
 			const transformed = applyBodyTransforms(input, concept.rel);

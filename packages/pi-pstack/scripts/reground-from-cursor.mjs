@@ -42,6 +42,15 @@ export const CLASS_RULES = [
 	{ pattern: "skills/poteto-mode/scripts/package.json", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/bun.lock", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/worktree-audit.sh", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/references/branch-workflow.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/orchestrate.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/autopilot-full.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/autopilot-stack.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/babysit.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/shipping.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/opening-a-pr.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/playbooks/multi-phase-plan.md", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/scripts/orch/**", class: "pi-only" },
 
 	{ pattern: "skills/principle-*/**", class: "copy" },
 	{ pattern: "skills/typescript-best-practices/references/patterns.md", class: "copy" },
@@ -558,6 +567,53 @@ const POTETO_CODE_REVIEW_ROUTING = [
 	"- PR-status requests such as `check on PR X` use the Babysit playbook.",
 ].join("\n");
 
+const POTETO_BRANCH_WORKFLOW = [
+	"## Branch workflow",
+	"",
+	"Read `references/branch-workflow.md` before a program, PR, babysit, or shipping workflow. Use the repository's branch tool. Run independent PRs in parallel. Start dependent work after its prerequisite merges, or keep coupled work in one PR. Do not construct dependent PR stacks or use Graphite.",
+].join("\n");
+
+function patchIndependentPrRoutes(text) {
+	const routes = [
+		{
+			pattern: /^- Asked to land or ship a green stack.*$/m,
+			replacement:
+				"- Asked to land or ship a green PR queue → the **Shipping** playbook (`playbooks/shipping.md`). Green is not safe. Nothing gets armed before an independent per-PR verdict. Only individually verified and authorized PRs land.",
+		},
+		{
+			pattern: /^- \*\*Babysit\.\*\*.*$/m,
+			replacement:
+				"- **Babysit.** Bring requested independent PRs to merge-ready. Conflicts, review threads, and CI. `playbooks/babysit.md`.",
+		},
+		{
+			pattern: /^- \*\*Shipping\.\*\*.*$/m,
+			replacement:
+				"- **Shipping.** Independently verify requested PRs, then land only authorized PRs at their verified heads. Use the repository's forge. `playbooks/shipping.md`.",
+		},
+		{
+			pattern: /^- \*\*Autopilot-stack\.\*\*.*$/m,
+			replacement:
+				'- **Review-only PR queue.** Build and verify independent PRs while the operator retains landing authority. Includes legacy "autopilot-stack" or "build the stack, I\'ll land it" requests, without constructing a branch chain. `playbooks/autopilot-stack.md`.',
+		},
+		{
+			pattern: /^- \*\*Multi-phase or multi-PR plan\.\*\*.*$/m,
+			replacement:
+				"- **Multi-phase or multi-PR plan.** Work that spans phases or independent PRs. Dependent work starts after its prerequisite merges. `playbooks/multi-phase-plan.md`.",
+		},
+	];
+	let result = text.replaceAll("many stacked PRs", "many independent PRs");
+	for (const route of routes) {
+		result = result.replace(route.pattern, route.replacement);
+	}
+	if (!result.includes("## Branch workflow")) {
+		if (result.includes("## Autonomy")) {
+			return result.replace("## Autonomy", `${POTETO_BRANCH_WORKFLOW}\n\n## Autonomy`);
+		}
+		return `${result.trimEnd()}\n\n${POTETO_BRANCH_WORKFLOW}\n`;
+	}
+	return result;
+}
+
 function patchPotetoModePi(text) {
 	if (!text.includes("`/poteto-mode` enables this mode")) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
@@ -570,7 +626,7 @@ function patchPotetoModePi(text) {
 		text = text.replace(anchor, `${POTETO_CODE_REVIEW_ROUTING}\n\n${anchor}`);
 	}
 	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
-	return text.replace(`${RETIRED_POTETO_EVIDENCE_BULLET}\n`, "");
+	return patchIndependentPrRoutes(text.replace(`${RETIRED_POTETO_EVIDENCE_BULLET}\n`, ""));
 }
 
 export function plan(paths) {
@@ -772,24 +828,11 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			"before the step-3 `architect` and Pstack Challenge fan-out. For Challenge, read `../../code-review/SKILL.md` relative to this playbook's directory.",
 	},
 	{
-		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		pattern: /A subagent that opens a PR runs `interrogate`/,
-		replacement:
-			"A subagent that opens a PR first reads `../../code-review/SKILL.md` relative to this playbook's directory. It runs that coordinator in Challenge mode",
-	},
-	{
 		rel: "skills/architect/SKILL.md",
 		pattern:
 			/For adversarial pressure on the design before implementing, run the (?:`interrogate`|\*\*interrogate\*\*) skill on the synthesized sketch\./g,
 		replacement:
 			"For adversarial pressure on the design before implementing, read `../code-review/SKILL.md` relative to this skill directory. Use Challenge on the synthesized sketch.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		pattern:
-			/Which PRs get `pstack\/skills\/how\/SKILL\.md` and `pstack\/skills\/interrogate\/SKILL\.md`\./,
-		replacement:
-			"Which PRs get `pstack/skills/how/SKILL.md` and `../../code-review/SKILL.md` in Challenge mode. Resolve the coordinator path relative to this playbook's directory.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
@@ -867,23 +910,6 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			/^Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model \(default `claude-fable-5-1-thinking-max`\)\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` with every explorer's findings filled in\.$/m,
 		replacement:
 			'The same workflow launches `explain` after every explorer settles using:\n- agent: "worker"\n- `model`: `how synthesizer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only',
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		pattern: /a real terminal `\/loop`/,
-		replacement: "a recurring wake",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		pattern: /`control-ui` or `control-cli` from `cursor-team-kit`/,
-		replacement: "the project's verification skill or harness",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		pattern:
-			/^3\. Explore in subagents with `subagent_type: "poteto-agent"` and an explicit model per the Subagents section \(the \*\*guard-the-context-window\*\* principle skill\)\. Each returns file pointers, conventions, test commands, and entry points\. No inlined dumps\.$/m,
-		replacement:
-			'3. Explore in subagents with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call and an explicit model per child from the Subagents section (the **guard-the-context-window** principle skill). In `workflowScript`, launch the explorers with `return await runs.all([{ key: "explore-<slice>", agent: "poteto-agent", task, model }])`. Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.',
 	},
 	{
 		rel: "skills/arena/SKILL.md",
