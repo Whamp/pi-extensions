@@ -1,5 +1,15 @@
 # @whamp/pi-pstack
 
+## 0.10.0
+
+### Minor Changes
+
+- 93a3f86: Replace Graphite and manual dependent PR stacks with independent PR coordination. Follow repository branch tools, sequence dependent work after prerequisite merges, and retain review-only handoff. Select one shared absolute program directory. Snapshot enrolled PRs using GitHub's default branch and remote heads. Preserve the adapted workflow during upstream imports.
+
+### Patch Changes
+
+- ca59c48: Link Pstack skills into `~/.agents/skills/` during Git repository and npm package installation so BB and other agents can discover them. Preserve existing entries, include full skill directories, and provide an opt-out and manual repair command.
+
 ## 0.9.1
 
 ### Patch Changes
