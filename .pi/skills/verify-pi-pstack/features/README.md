@@ -6,6 +6,7 @@ This map covers only packages/pi-pstack. Read it before driving. Use the SKILL.m
 
 | Feature | Recipes and proof |
 | --- | --- |
+| Shared skill installation | `scripts/install-shared-skills.test.mjs`: root and child postinstall hooks, 48 complete directory links, repeat installation, conflicts, opt-out, filesystem errors, tarball inclusion. For release verification, run real Pi Git and packed-npm installs in isolated homes and inspect `~/.agents/skills/`; lifecycle-only tests do not prove Pi or BB integration. |
 | [Skill catalog](skill-catalog.md) | /pstack status, on/off, aliases, bad argument, persisted toggle |
 | [Sticky Poteto Mode](poteto-mode.md) | command, explicit skill and inline entry; off aliases; session persistence |
 | [Role setup](role-setup.md) | UI cancellation/save, selected models, recovery backups |

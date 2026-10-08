@@ -16,6 +16,7 @@
     "undici": "^8.10.2"
   },
   "scripts": {
+    "postinstall": "node packages/pi-pstack/scripts/install-shared-skills.mjs",
     "check": "node scripts/check-packages.mjs",
     "test": "pnpm -r run test && node --test scripts/*.test.mjs",
     "test:local": "node scripts/check-packages.mjs && echo \"Try: pi -e ./packages/<name>\"",

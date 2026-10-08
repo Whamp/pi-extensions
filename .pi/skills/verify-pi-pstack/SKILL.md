@@ -29,7 +29,7 @@ pi --version > "$EVIDENCE/pi-version.txt"
 node --experimental-strip-types --test \
   "$PACKAGE"/extensions/pstack/*.test.ts \
   "$PACKAGE/skills/poteto-mode/scripts/check-plan.test.mjs" \
-  "$PACKAGE/scripts/reground-from-cursor.test.mjs" \
+  "$PACKAGE"/scripts/*.test.mjs \
   > "$EVIDENCE/package-tests.txt" 2>&1
 ```
 
