@@ -32,6 +32,7 @@
 		"!extensions/**/*.test.ts",
 		"skills/",
 		"agents/",
+		"scripts/install-shared-skills.mjs",
 		"README.md",
 		"LICENSE"
 	],
@@ -55,6 +56,7 @@
 		}
 	},
 	"scripts": {
-		"test": "node --experimental-strip-types --test extensions/pstack/*.test.ts skills/poteto-mode/scripts/check-plan.test.mjs scripts/reground-from-cursor.test.mjs"
+		"postinstall": "node scripts/install-shared-skills.mjs",
+		"test": "node --experimental-strip-types --test extensions/pstack/*.test.ts skills/poteto-mode/scripts/check-plan.test.mjs scripts/*.test.mjs"
 	}
 }

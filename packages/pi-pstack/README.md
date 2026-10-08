@@ -10,7 +10,40 @@ If you want to go fast, go deep first. pstack helps you write less, but higher q
 pi install npm:@whamp/pi-pstack
 ```
 
-Or install from the repository, which is the source of truth for this port:
+Or install the full repository into Pi:
+
+```bash
+pi install git:github.com/Whamp/pi-extensions
+```
+
+Both fresh Git installs and npm installs run a `postinstall` hook that creates
+symlinks for all 48 Pstack skill directories in `~/.agents/skills/`. BB and other
+agents can discover these shared skills without copying them out of the package.
+The links include each skill's references, scripts, and invocation controls.
+This exposes skills for discovery; Pi-specific workflows still require Pi.
+Existing files, directories, and links are preserved. Conflicts produce a warning;
+the installer does not switch an existing link from a Git install to an npm install,
+or the reverse. Inspect and remove an old link yourself before rerunning the installer.
+
+Set `PI_PSTACK_SKIP_SKILL_LINKS=1` during installation to opt out. Package managers
+configured to disable lifecycle scripts do not create the links. Pi does not run
+package installation for local paths, and an existing Git checkout can be reused
+without rerunning lifecycle scripts. To repair links in those cases, run:
+
+```bash
+# From the pi-extensions repository:
+node packages/pi-pstack/scripts/install-shared-skills.mjs
+# Or from the installed @whamp/pi-pstack package directory:
+node scripts/install-shared-skills.mjs
+```
+
+The installer is safe to repeat. Package removal does not remove shared links;
+after uninstalling, remove only the links that point to that installation.
+Project-local and temporary package installs also run the hook and create global
+links unless opted out; those links depend on the installation directory remaining
+in place. Use a persistent personal install for shared skills.
+
+For a local development checkout, which is the source of truth for this port:
 
 ```bash
 git clone https://github.com/Whamp/pi-extensions.git ~/projects/pi-extensions
