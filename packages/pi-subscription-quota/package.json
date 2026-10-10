@@ -1,6 +1,6 @@
 {
 	"name": "@whamp/pi-subscription-quota",
-	"version": "0.0.0",
+	"version": "0.0.1",
 	"description": "Concise Pi subscription quota observations through CodexBar",
 	"keywords": [
 		"pi-extension",
