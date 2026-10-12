@@ -1,5 +1,11 @@
 # @whamp/pi-pstack
 
+## 0.10.1
+
+### Patch Changes
+
+- f2d66cd: Declare host-provided typebox as a peer dependency to avoid duplicate runtime modules and the extension loader warning on Pi startup.
+
 ## 0.10.0
 
 ### Minor Changes
