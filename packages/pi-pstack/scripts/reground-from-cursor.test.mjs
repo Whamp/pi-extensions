@@ -449,8 +449,8 @@ test("Pi-owned PR and BB overlays survive hostile upstream replacements and miss
 		}
 		apply(plan({ from, to, dryRun: false }));
 		for (const rel of files) {
-			assert.equal(classify(asRelPath(rel)), "pi-only");
 			assert.equal(readFileSync(join(to, rel), "utf8"), local[rel], rel);
+			assert.equal(classify(asRelPath(rel)), "pi-only");
 		}
 		const router = readFileSync(join(to, rootRel), "utf8");
 		assert.match(router, /references\/branch-workflow\.md/);

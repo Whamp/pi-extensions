@@ -253,6 +253,25 @@ describe("pstack extension v2 runtime", () => {
 		});
 	});
 
+	it("leaves ordinary sessions and disabled Poteto Mode free of BB worker guidance", async () => {
+		for (const scenario of ["ordinary", "project-only", "mode-off"]) {
+			await withAgentDir(async () => {
+				if (scenario === "project-only") process.env.BB_PROJECT_ID = "project-without-thread";
+				if (scenario === "mode-off") process.env.BB_THREAD_ID = "bb-thread";
+				const { events } = loadExtension();
+				const { ctx } = makeCtx();
+				if (scenario !== "mode-off") {
+					await events.get("input")?.({ text: "/skill:poteto-mode task" }, ctx);
+				}
+				assert.deepEqual(
+					await events.get("before_agent_start")?.({ systemPrompt: "BASE" }, ctx),
+					{ systemPrompt: scenario === "mode-off" ? "BASE" : `BASE\n\n${POTETO_ONE_LINER}` },
+					scenario,
+				);
+			});
+		}
+	});
+
 	it("gives one TUI warning for noisy config and none for missing or info-only v1, and does not rewrite on load", async () => {
 		await withAgentDir(async ({ jsonPath }) => {
 			const original = writeJson(jsonPath, {

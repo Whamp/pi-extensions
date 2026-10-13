@@ -75,6 +75,13 @@ describe("package runtime dependencies", () => {
 });
 
 describe("root Pi package", () => {
+  it("keeps the shared-skill lifecycle hook on the Git install", () => {
+    assert.equal(
+      packageJson.scripts.postinstall,
+      "node packages/pi-pstack/scripts/install-shared-skills.mjs",
+    );
+  });
+
   it("uses distinct, descriptive extension labels in pi config", () => {
     const labels = packageJson.pi.extensions.map(
       (path) => `${basename(dirname(path))}/${basename(path)}`,
