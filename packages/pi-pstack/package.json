@@ -49,12 +49,7 @@
 		],
 		"skills": [
 			"./skills"
-		],
-		"subagents": {
-			"agents": [
-				"./agents"
-			]
-		}
+		]
 	},
 	"scripts": {
 		"postinstall": "node scripts/install-shared-skills.mjs",

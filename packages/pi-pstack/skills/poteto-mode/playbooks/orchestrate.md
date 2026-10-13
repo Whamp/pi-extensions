@@ -10,13 +10,13 @@ Three rules carry the rest.
 
 - Completions are queue events, not interrupts.
 - Every spawn and every resume carries the standing orders verbatim.
-- The brief is the product. A vague brief fails quietly, because a worker cannot ask you a question.
+- The brief is the product. A vague brief wastes work. Worker questions go to the coordinator; the operator can still talk directly to any worker.
 
 #### Roles and placement
 
-- **Coordinator (this chat).** Local. Frames, authors briefs, drains the inbox, owns the human report, makes judgment calls. It never authors or edits code. Conflicted merges and code changes are tasks for the branch owner. The coordinator may land a verified PR only through the repository's approval and landing rules. It must not cherry-pick a worker's change onto protected trunk or bypass required PR review. The loop is agentic end to end. Launch one child with `subagent({ action: "execute", input: { agent, task, async: true } })`. Launch each parallel or dependent wave with one execute call whose `input.workflowScript` uses stable-keyed `runs.run` and `runs.all` steps. State reads and writes go through `scripts/orch/orch.ts` at drain points, one command in and one line out. The CLI never spawns, waits, or wakes anything.
-- **Sub-coordinator.** Always local, durable, one per track, and only when the program exceeds what one coordinator's drains can manage. A track the coordinator can drain itself needs no middle layer. Each nested layer re-pays a full orientation preamble, and a blocking sub-coordinator hides its children while the parent idles. Owns its track's units and boards, authors its workers' briefs, spawns its own workers and verifiers. Nesting works to depth 3. A custom sub-coordinator agent must list `subagent` in its tool allowlist. It must also list each extension tool and load its provider through `extensions` or `subagentOnlyExtensions`. Rolls up aggregates at wave boundaries. Never forwards raw child reports. Cap in-flight children at what one drain can process, roughly ten, as a rolling window. Never as blocking batches, which cost the slowest child of every batch.
-- **Worker / verifier.** Set `input.async: true` for background work. Set `input.cwd` when the task needs a specific checkout, local transcript, simulator, IDE state, or machine-local auth. Briefs inline what an external provider needs or point at repository paths it can read. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit's verifier on a different model family from its worker. A role's model line selects only the model. It does not grant tools or extensions.
+- **Coordinator (this BB Pi thread).** Desktop by default. Frames, authors briefs, drains the inbox, owns the human report, makes judgment calls. It never authors or edits code. Conflicted merges and code changes are tasks for the branch owner. The coordinator may land a verified PR only through the repository's approval and landing rules. It must not cherry-pick a worker's change onto protected trunk or bypass required PR review. The loop is agentic end to end. Launch fresh, visible, parented BB Pi threads through `pi_worker`. The coordinator decides each ready wave and dependent stage from evidence. Record BB thread IDs. Read `../references/bb-surface.md` for the worker contract. State reads and writes go through `scripts/orch/orch.ts` at drain points, one command in and one line out. The CLI never spawns, waits, or wakes anything.
+- **Sub-coordinator.** A durable BB Pi thread, normally on desktop, one per track, and only when the program exceeds what one coordinator's drains can manage. A track the coordinator can drain itself needs no middle layer. Each nested layer re-pays a full orientation preamble, and a blocking sub-coordinator hides its children while the parent idles. Owns its track's units and boards, authors its workers' briefs, spawns its own workers and verifiers. Nesting works to depth 3. A track coordinator is a nested BB Pi thread with `pi_worker` in its explicit tool allowlist. Give it the read/search, research, and execution tools its scoped coordination needs. It sends evidence packets upward; the root writes the shared program store. Rolls up aggregates at wave boundaries. Never forwards raw child reports. Cap in-flight children at what one drain can process, roughly ten, as a rolling window. Never as blocking batches, which cost the slowest child of every batch.
+- **Worker / verifier.** Fresh BB Pi threads run in the background. Prepare isolated Lane workspaces for writers and attach BB to those existing paths. Read-only workers can reuse the parent's environment. Use specialist-host environments only for work tied to their local services or hardware. Briefs inline what an external provider needs or point at repository paths it can read. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit's verifier on a different model family from its worker. A role's model line selects only the model. It does not grant tools or extensions.
 
 Depth stays at coordinator, track, worker. Author the track decomposition per project (build, landing, and verification are common cuts, not a required shape). Hard-coded swarm trees were tried and parked as too rigid.
 
@@ -24,7 +24,7 @@ Depth stays at coordinator, track, worker. Author the track decomposition per pr
 
 Select one shared program directory under the primary checkout's `.pi/pstack/programs/<program-name>/`. Use `~/.pi/pstack/programs/<project-id>/<program-name>/` when the records must outlive that checkout or cover several repositories. Resolve it once and pass the absolute path as `--store` or `ORCH_STORE` to every helper, brief, completion report, and resume. Confirm project-local records are Git-ignored. Workers must not create stores relative to their own worktrees. Separate repository registers in multi-repository programs.
 
-Every file has one writer. Owners publish facts. Readers aggregate at read time. Run the installed skill's `scripts/orch/orch.ts` with Bun, written below as `orch`. Its TSV and JSON records remain readable without the CLI.
+The coordinator is the sole program-store writer. Workers publish reports and artifacts outside the shared store; the coordinator records their facts. A remote worker must not assume the coordinator's absolute filesystem path exists on its host. Run the installed skill's `scripts/orch/orch.ts` with Bun, written below as `orch`. Its TSV and JSON records remain readable without the CLI.
 
 - `preferences.md` is the standing-orders register: numbered lines, one constraint each (model policy, PR inventory and dependencies, verification bar, forbidden paths, escalation policy). Paste it verbatim into every spawn and every resume. Directives decay across resumes, and each dropped one costs a human turn. When you catch yourself restating an instruction, append the line before you act (principle-encode-lessons-in-structure).
 - `overview.md` is the durable PR and issue DB. Append. Never rewrite wholesale per event.
@@ -66,92 +66,10 @@ A dependency is a context relay, not just ordering. Undeclared upstream context 
 3. **Pilot.** Push one unit through the whole path: brief, worker, verification, PR enrollment, ledger row, authorized merge. The pilot exists to falsify the brief template, the verify recipe, and the unit size while that costs one agent instead of fifty. Fix the contract from pilot evidence before any fan-out. Scale the pilot to the unit. On programs of near-identical cheap units, the first unit is the pilot, run as a normal unit with its verify command inline, and fan-out starts the moment it lands. The dedicated pilot pipeline (separate verifier agent, audit gate) is for expensive or novel unit shapes, not for clone-units where a serialized pilot has nothing to falsify.
 4. **Scale.** Spawn a rolling window of child stages up to the in-flight cap, refilling as each child settles.
 
-Derive positive C, N, and V from the finite unit inventory before building the request. Embed concrete C and UNITS JSON literals into workflowScript, substitute real agent, model, and task values, and resolve each child model explicitly under the caller's model-routing policy. Set the outer request as `subagent({ action: "execute", input: { async: true, globalConcurrencyLimit: C, maxSubagentSpawnsPerRun: N + V, workflowScript } })`; C counts workers and verifiers together, globalConcurrencyLimit is the same C backstop, and N + V is cumulative admission. N is the number of worker units and V is the number of units with a verifier.
+Choose a positive in-flight cap from the finite unit inventory. Count workers and verifiers together. Launch ready `pi_worker` assignments up to that cap without waiting between launches. Each carries its role, resolved model, explicit tools, isolated workspace when writing, brief, and report contract. Persist its BB thread ID against its work-unit ID.
 
-Use this `workflowScript` body. Keep `pending` as the single source of truth for the cap. A successful worker launches its matching different-family verifier before the next worker fills that slot. A failed worker records neutral evidence and gets no verifier.
+On a successful worker completion, read its full report and launch that unit's independent verifier before refilling the slot with a new worker. A failed worker records neutral evidence and gets no verifier. Dependent stages launch only after prerequisite reports and artifacts are available. The coordinator chooses each refill; do not replace that judgment with a workflow script.
 
-```js
-const C = 3;
-const UNITS = [
-  { key: "unit-a", worker: { agent: "worker", model: "worker-model", task: "Work on unit A" } },
-  { key: "unit-b", worker: { agent: "worker", model: "worker-model", task: "Work on unit B" }, verifier: { agent: "reviewer", model: "reviewer-model" } },
-  { key: "unit-c", worker: { agent: "worker", model: "worker-model", task: "Work on unit C" } },
-  { key: "unit-d", worker: { agent: "worker", model: "worker-model", task: "Work on unit D" }, verifier: { agent: "reviewer", model: "reviewer-model" } },
-  { key: "unit-e", worker: { agent: "worker", model: "worker-model", task: "Work on unit E" } },
-];
-let nextUnit = 0;
-const rows = [];
-let pending = [];
-
-function errorText(error) {
-  return error && typeof error.message === "string" ? error.message : String(error);
-}
-
-function observeStage(key, unit, kind, launch) {
-  return launch.then(
-    (result) => ({ key, unit, kind, result }),
-    (error) => ({ key, unit, kind, error: errorText(error) }),
-  );
-}
-
-function startStage(key, unit, kind, params) {
-  try {
-    return observeStage(key, unit, kind, runs.run(key, params));
-  } catch (error) {
-    return Promise.resolve({ key, unit, kind, error: errorText(error) });
-  }
-}
-
-function startWorker(unit) {
-  pending.push({
-    key: unit.key,
-    promise: startStage(unit.key, unit, "worker", unit.worker),
-  });
-}
-
-function startVerifier(unit, worker) {
-  const output = typeof worker.output === "string" ? worker.output : "";
-  const task = "Verify " + unit.key + " from " + runs.ref(worker) + ".\nWorker output:\n" + output;
-  pending.push({
-    key: unit.key + "-verify",
-    promise: startStage(unit.key + "-verify", unit, "verifier", { ...unit.verifier, task }),
-  });
-}
-
-function evidenceRow(done) {
-  if (done.error !== undefined) return { unit: done.unit.key, stage: done.kind, state: "error", error: done.error };
-  const result = done.result;
-  return {
-    unit: done.unit.key,
-    stage: done.kind,
-    state: "settled",
-    ok: result.ok === true,
-    ...(result.stopped === true ? { stopped: true } : {}),
-    ...(result.runId !== undefined ? { runId: result.runId } : {}),
-    output: result.output,
-  };
-}
-
-try {
-  while (nextUnit < UNITS.length || pending.length > 0) {
-    while (pending.length < C && nextUnit < UNITS.length) {
-      startWorker(UNITS[nextUnit]);
-      nextUnit += 1;
-    }
-    const done = await Promise.race(pending.map((entry) => entry.promise));
-    pending = pending.filter((entry) => entry.key !== done.key);
-    rows.push(evidenceRow(done));
-    if (done.kind === "worker" && done.error === undefined && done.result && done.result.ok === true && done.unit.verifier) {
-      startVerifier(done.unit, done.result);
-    }
-  }
-  return rows;
-} finally {
-  await Promise.allSettled(pending.map((entry) => entry.promise));
-}
-```
-
-Each `Promise.race` removes its settled entry before refill. Verifier tasks include only the matching worker reference from `runs.ref(worker)` and returned output under the child maxOutput contract, never the full result object. Every direct `runs.run` rejection becomes neutral stage error evidence, and the final `Promise.allSettled` observes pending promises on exceptional exit. Returned rows are evidence for drain-time classification, not verification verdicts.
 Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.
 5. **Drain.** Run the queue discipline below at every drain point.
 6. **Land.** Landing is continuous, never a terminal phase. Integration starts with the first verified unit and runs alongside independent work. Start dependent units only after their prerequisites merge. Each owner uses the repository's branch tool. The coordinator may land verified units only under the repository's approval and landing rules. PR safety below governs. Refresh `frontier.json` after each merge or reported new head SHA.
@@ -186,7 +104,7 @@ A unit is not done until its output is externalized the moment it lands, never b
 
 #### Liveness and failure
 
-- Never resume an agent to check on it. A resume restarts an idle agent. Probe without mutation through the ledger, `units.tsv`, `gh`, pushed branches, and `subagent({ action: "status", input: { id } })`. Transcript mtime is not liveness.
+- Do not send a message just to check liveness. Inspect BB thread status and output, the ledger, `units.tsv`, PR heads, and workspace state. A message is a new instruction. Recover retained workers before creating replacements. Stop an old writer before assigning its checkout to a replacement.
 - A silent death gets a synthetic postmortem row in the inbox (unit, failure mode, last evidence, options). Replan on evidence as it arrives. Never wait for full quiescence.
 - Retry by mode: cap-hit or oom, respawn with smaller scope. Network-drop, retry as-is. Tool-error, retry on a different model. Unknown, retry once. Two retries, then abandon the unit and replan around it.
 - A zombie that returns hours late reconciles against the current frontier and ledger before anything is accepted. Salvage unique findings through a fresh unit, never a blind merge.

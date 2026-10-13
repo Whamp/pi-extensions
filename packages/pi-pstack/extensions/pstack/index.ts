@@ -189,8 +189,7 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 	pi.on("input", async (event, ctx) => {
 		if (
 			event.source !== "extension" &&
-			(/^\/skill:poteto-mode(?:\s|$)/.test(event.text) ||
-				INLINE_POTETO_MODE_RE.test(event.text))
+			(/^\/skill:poteto-mode(?:\s|$)/.test(event.text) || INLINE_POTETO_MODE_RE.test(event.text))
 		) {
 			persistMode(true, ctx);
 		}
@@ -202,7 +201,10 @@ export default function pstackExtension(pi: ExtensionAPI): void {
 		const base = loaded.config.skillsEnabled
 			? event.systemPrompt
 			: stripSkillsByLocationPrefix(event.systemPrompt, SKILLS_DIR).prompt;
-		const extra = systemPromptInjection(potetoMode);
+		const bbReferencePath = process.env.BB_THREAD_ID
+			? join(SKILLS_DIR, "poteto-mode", "references", "bb-surface.md")
+			: undefined;
+		const extra = systemPromptInjection(potetoMode, bbReferencePath);
 		return {
 			systemPrompt: extra ? `${base}\n\n${extra}` : base,
 		};

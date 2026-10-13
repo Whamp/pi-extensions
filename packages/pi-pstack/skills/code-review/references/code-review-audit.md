@@ -41,7 +41,7 @@ Choose one ordered Audit model lineup for both axes. Follow the caller's `model-
 
 Record requested selectors separately from actual selectors. Record every substitution. Do not silently claim a substituted model covers a required family. Missing required families, failed launches, timeouts, and missing outputs remain unresolved coverage.
 
-Discover available agents with `subagent({ action: "list", input: { capabilities: true } })`. Launch the Audit children together in one `workflowScript` using `runs.all`. Each item uses `agent: "reviewer"`, `context: "fresh"`, a stable key, the prepared packet, and its resolved model selector. Count all children in the run's spawn budget. The parent synthesizes the returned reports.
+Launch the Audit reviewers as fresh, visible, nested BB Pi threads through `pi_worker`. Give each the prepared packet, resolved model selector, stable work-unit label, and tools `read`, `grep`, `find`, and `ls`. Launch independent reviewers without waiting between launches. Record every returned thread ID. Read full reports before the parent synthesizes them. Preserve separate Standards and Spec contexts and the same ordered model lineup.
 
 For each selected model, launch two fresh reviewer children:
 

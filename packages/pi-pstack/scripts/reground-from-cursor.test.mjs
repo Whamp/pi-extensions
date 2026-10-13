@@ -77,7 +77,7 @@ const PI_SYNCED_FILES = {
 
 const sandbox = mkdtempSync(join(tmpdir(), "pi-pstack-reground-"));
 const packageRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const pinnedCallerGuidanceRoot = resolve(packageRoot, "fixtures/cursor-pstack-12d587d");
+const pinnedCallerGuidanceRoot = resolve(packageRoot, "fixtures/cursor-pstack-df58112");
 const PINNED_CALLER_GUIDANCE_FILES = [
 	"skills/arena/SKILL.md",
 	"skills/how/SKILL.md",
@@ -115,17 +115,11 @@ function classTable(planned, kind) {
 }
 
 function extractPotetoDefaultsSection(text) {
-	const start = text.indexOf("**Defaults for every child launch.**");
+	const start = text.indexOf("**Defaults for every BB worker launch.**");
 	assert.notEqual(start, -1, "missing Pi child defaults");
 	const end = text.indexOf("\n\nYou own every subagent's work.", start);
 	assert.notEqual(end, -1, "missing end of Pi child defaults");
 	return text.slice(start, end);
-}
-
-function extractWorkflowExample(text) {
-	const match = text.match(/```js\n([\s\S]*?)\n```/);
-	assert.ok(match, "missing generated workflowScript example");
-	return match[1];
 }
 
 test("frontmatter preserves upstream invocation settings without a Pi selection override", () => {
@@ -413,8 +407,10 @@ test("pinned upstream caller guidance regenerates shipped files byte-for-byte", 
 	}
 });
 
-test("independent PR overlays survive hostile upstream replacements and missing counterparts", () => {
+test("Pi-owned PR and BB overlays survive hostile upstream replacements and missing counterparts", () => {
 	const overlays = [
+		"skills/poteto-mode/references/bb-surface.md",
+		"skills/poteto-help/SKILL.md",
 		"skills/poteto-mode/references/branch-workflow.md",
 		"skills/poteto-mode/playbooks/orchestrate.md",
 		"skills/poteto-mode/playbooks/autopilot-full.md",
@@ -503,165 +499,18 @@ test("shipped Pi caller guidance is not remapped as Cursor source", () => {
 	);
 });
 
-test("generated Orchestrate workflow refills on completion and hands off matching evidence", async () => {
-	const generated = readFileSync(
+test("BB Orchestrate preserves the rolling window and evidence handoff without a scripted scheduler", () => {
+	const body = readFileSync(
 		join(packageRoot, "skills/poteto-mode/playbooks/orchestrate.md"),
 		"utf8",
 	);
-	assert.match(
-		generated,
-		/Promise\.race/,
-		"Scale guidance must refill from the next completed child",
-	);
-	assert.match(
-		generated,
-		/globalConcurrencyLimit: C/,
-		"Scale guidance must declare the total concurrency backstop",
-	);
-	assert.match(
-		generated,
-		/maxSubagentSpawnsPerRun: N \+ V/,
-		"Scale guidance must declare cumulative admission",
-	);
-	assert.match(
-		generated,
-		/counts workers and verifiers together/,
-		"Scale guidance must define the shared cap",
-	);
-
-	const workflowSource = extractWorkflowExample(generated);
-	assert.doesNotMatch(workflowSource, /runs\.all/, "Scale example must not use a runs.all barrier");
-	assert.match(
-		workflowSource,
-		/unit-d.*verifier/,
-		"the failed-worker fixture must declare a verifier that can be skipped",
-	);
-	const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
-	const workflow = new AsyncFunction("runs", workflowSource);
-	const calls = [];
-	const settled = [];
-	const pendingRuns = new Map();
-	let active = 0;
-	let maxActive = 0;
-
-	function settleRun(key, method, value) {
-		const deferred = pendingRuns.get(key);
-		assert.ok(deferred, `unknown fake child ${key}`);
-		pendingRuns.delete(key);
-		active -= 1;
-		settled.push(key);
-		deferred[method](value);
-	}
-
-	const runs = {
-		ref(result) {
-			return `[run ${result.key}; id=${String(result.runId).slice(0, 8)}]`;
-		},
-		run(key, params) {
-			calls.push({ key, params });
-			active += 1;
-			maxActive = Math.max(maxActive, active);
-			const promise = new Promise((resolve, reject) => {
-				pendingRuns.set(key, { resolve, reject });
-			});
-			if (key === "unit-b") {
-				queueMicrotask(() =>
-					settleRun(key, "resolve", {
-						key,
-						ok: true,
-						runId: "run-b",
-						output: "B output",
-						secret: "must not enter verifier task",
-					}),
-				);
-			}
-			return promise;
-		},
-	};
-
-	const workflowPromise = workflow(runs);
-	for (
-		let attempt = 0;
-		attempt < 100 && !calls.some(({ key }) => key === "unit-b-verify");
-		attempt += 1
-	) {
-		await new Promise((resolve) => setImmediate(resolve));
-	}
-	assert.deepEqual(
-		calls.slice(0, 4).map(({ key }) => key),
-		["unit-a", "unit-b", "unit-c", "unit-b-verify"],
-	);
-	assert.deepEqual(settled, ["unit-b"]);
-	assert.equal(
-		calls.some(({ key }) => key === "unit-d"),
-		false,
-		"the matching verifier must take the freed slot before the next worker",
-	);
-	const verifierCall = calls.find(({ key }) => key === "unit-b-verify");
-	assert.ok(verifierCall, "the matching verifier must start after worker B settles");
-	assert.deepEqual(verifierCall.params, {
-		agent: "reviewer",
-		model: "reviewer-model",
-		task: "Verify unit-b from [run unit-b; id=run-b].\nWorker output:\nB output",
-	});
-	assert.ok(maxActive <= 3, `active children exceeded C: ${maxActive}`);
-
-	settleRun("unit-b-verify", "resolve", {
-		key: "unit-b-verify",
-		ok: true,
-		runId: "run-b-verify",
-		output: "verdict: blocked",
-		structuredOutput: { verdict: "blocked" },
-	});
-	for (let attempt = 0; attempt < 100 && !calls.some(({ key }) => key === "unit-d"); attempt += 1) {
-		await new Promise((resolve) => setImmediate(resolve));
-	}
-	assert.equal(settled.includes("unit-a"), false, "worker D must not wait for unrelated worker A");
-	assert.equal(settled.includes("unit-c"), false, "worker D must not wait for unrelated worker C");
-
-	settleRun("unit-a", "resolve", { key: "unit-a", ok: true, runId: "run-a", output: "A output" });
-	for (let attempt = 0; attempt < 100 && !calls.some(({ key }) => key === "unit-e"); attempt += 1) {
-		await new Promise((resolve) => setImmediate(resolve));
-	}
-	assert.ok(
-		calls.some(({ key }) => key === "unit-e"),
-		"a successful worker without a verifier must refill its slot",
-	);
-	assert.equal(settled.includes("unit-d"), false, "worker E must not wait for unrelated worker D");
-	assert.equal(settled.includes("unit-c"), false, "worker E must not wait for unrelated worker C");
-
-	settleRun("unit-d", "reject", new Error("D launch unavailable"));
-	assert.equal(
-		calls.some(({ key }) => key === "unit-d-verify"),
-		false,
-		"a failed worker must not launch a verifier",
-	);
-	assert.ok(maxActive <= 3, `active children exceeded C: ${maxActive}`);
-
-	settleRun("unit-c", "resolve", { key: "unit-c", ok: true, runId: "run-c", output: "C output" });
-	settleRun("unit-e", "resolve", { key: "unit-e", ok: true, runId: "run-e", output: "E output" });
-	const rows = await workflowPromise;
-	assert.equal(active, 0, "all fake child promises must settle");
-	assert.equal(maxActive <= 3, true, `active children exceeded C: ${maxActive}`);
-	assert.deepEqual(
-		rows.filter(({ unit }) => unit === "unit-d"),
-		[{ unit: "unit-d", stage: "worker", state: "error", error: "D launch unavailable" }],
-	);
-	assert.equal(
-		rows.some(({ unit, stage }) => unit === "unit-d" && stage === "verifier"),
-		false,
-	);
-	assert.deepEqual(
-		rows.find(({ unit, stage }) => unit === "unit-b" && stage === "verifier"),
-		{
-			unit: "unit-b",
-			stage: "verifier",
-			state: "settled",
-			ok: true,
-			runId: "run-b-verify",
-			output: "verdict: blocked",
-		},
-	);
+	assert.match(body, /Count workers and verifiers together/);
+	assert.match(body, /independent verifier before refilling/);
+	assert.match(body, /failed worker.*gets no verifier/);
+	assert.match(body, /Dependent stages launch only after prerequisite reports/);
+	assert.match(body, /coordinator is the sole program-store writer/);
+	assert.match(body, /thread IDs against|BB thread ID against/);
+	assert.doesNotMatch(body, /subagent\(|workflowScript|Promise\.race|runs\.all/);
 });
 
 test("renderWrite matches Poteto defaults and removes retired reply guidance", () => {
@@ -733,9 +582,7 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	{
 		rel: "skills/poteto-mode/SKILL.md",
 		cursor: 'Spawn subagent_type: "poteto-agent" for this task.',
-		requiredPi: [
-			'Spawn subagent({ action: "execute", input: { agent: "poteto-agent", task } }) for this task.',
-		],
+		requiredPi: ["Spawn pi_worker", "Poteto Mode skill path", "bounded task"],
 		forbiddenCursor: ["subagent_type"],
 	},
 	{
@@ -795,7 +642,11 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			'1. Spawn `Task` with `subagent_type: "Comment Sicko"`. Pass the scope. Do not restate its rules.',
 		requiredPi: [
-			'subagent({ action: "execute", input: { agent: "comment-sicko", task, async: false } })',
+			"pi_worker",
+			"Comment Sicko",
+			"../../agents/comment-sicko.md",
+			"does not delegate further",
+			"edit/write only when fixing comments",
 		],
 		forbiddenCursor: ["subagent_type", "`Task`"],
 	},
@@ -804,10 +655,11 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explorer model (default `grok-4.6-fast-xhigh`)\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
 		requiredPi: [
-			"workflowScript",
-			"maxSubagentSpawnsPerRun: N + 1",
-			"runs.all([",
-			'runs.run("explain",',
+			"2 to 4",
+			"pi_worker",
+			"how explorers",
+			"tools `read`, `grep`, `find`, and `ls`",
+			"without waiting",
 		],
 		forbiddenCursor: ["Spawn all explorers in a single message", "readonly"],
 	},
@@ -815,34 +667,57 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		rel: "skills/how/SKILL.md",
 		cursor:
 			"Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)\n- `readonly`: `true`\n\nBuild its prompt from `references/explainer-prompt.md` without the explorer-findings section. Go to Step 4.",
-		requiredPi: ['subagent({ action: "execute"', "one standalone child", "async: false"],
+		requiredPi: ["pi_worker", "how explainer", "without the explorer findings", "BB completion"],
 		forbiddenCursor: ["Task subagent", "readonly"],
 	},
 	{
 		rel: "skills/arena/SKILL.md",
 		cursor:
 			"Spawn all N subagents in one message with `run_in_background: true`, each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale.",
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
+		requiredPi: [
+			"pi_worker",
+			"isolated workspace/output path",
+			"artifact plus rationale",
+			"every BB thread ID",
+		],
 		forbiddenCursor: ["Spawn all N subagents in one message", "run_in_background"],
 	},
 	{
 		rel: "skills/swarm/SKILL.md",
 		cursor:
 			'Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the configured model. Use `environment: "local"` only when the worker needs access to something on the user\'s computer.',
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
+		requiredPi: [
+			"pi_worker",
+			"coverage slice",
+			"swarm workers",
+			"required tool allowlist",
+			"Desktop is the default",
+			"relevant prepared host",
+			"coverage matrix",
+		],
 		forbiddenCursor: ["Spawn all N workers in one message", "environment:", "run_in_background"],
 	},
 	{
 		rel: "skills/swarm/SKILL.md",
 		cursor: "When a worker must start from a non-default pushed branch, pass `cloud_base_branch`.",
-		requiredPi: ["`input.cwd`", "`input.worktree: true`", "`input.baseRef`"],
+		requiredPi: [
+			"repository branch tool",
+			"intended base ref",
+			"isolated workspace",
+			"do not create a nested worktree",
+		],
 		forbiddenCursor: ["cloud_base_branch"],
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		cursor:
 			"One message, three `Task` calls, `subagent_type: generalPurpose`, explicit `model:` on each, agent mode (`readonly: false`). Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). Readonly strips MCPs.",
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: 4", 'runs.run("synthesize-reviews",'],
+		requiredPi: [
+			"three fresh `pi_worker`",
+			"one per lens",
+			"specific research/MCP tools",
+			"not file-writing",
+		],
 		forbiddenCursor: ["Task` calls", "readonly"],
 	},
 	{
@@ -939,49 +814,35 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		rel: "skills/why/SKILL.md",
 		cursor:
 			"Launch all matching investigators in a single message so they run concurrently. Don't ask one agent to cover multiple MCPs.",
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N + 1", 'runs.run("synthesize-why",'],
+		requiredPi: ["pi_worker", "why investigators", "one investigator", "full reports"],
 		forbiddenCursor: ["Launch all matching investigators in a single message"],
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		cursor:
 			"Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` for the selected MCP, adapted from the examples in `references/source-playbook.md`\n3. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)\n4. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n5. The user's original question\n\n### Investigator roster. One per available evidence category\n\nSpawn one investigator per category that has a matching MCP. Each owns exactly one tool or MCP.",
-		requiredPi: [
-			"parent's evidence packet",
-			"including null results and gaps",
-			"owns exactly one evidence packet",
-		],
+		requiredPi: ["category playbook", "research/MCP tools", "source lookup"],
 		forbiddenCursor: ["for the selected MCP", "matching MCP", "one tool or MCP"],
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
 		cursor:
 			"Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` list from `~/.cursor/rules/pstack-models.mdc` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.",
-		requiredPi: [
-			"workflowScript",
-			"maxSubagentSpawnsPerRun: N",
-			"return await runs.all([",
-			"interrogate reviewers",
-		],
+		requiredPi: ["pi_worker", "interrogate reviewers", "per configured entry", "full report"],
 		forbiddenCursor: ["using the Task tool"],
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
 		cursor:
 			"If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent (prefer the highest-reasoning tier of the same family), spawn with the valid slug, and open a separate PR to update the configured value or default table. Do not block the review on the slug issue. If the configured value is `inherit-parent` or `auto`, omit `model` instead. Never treat those aliases as broken slugs or enter this fallback for them.",
-		requiredPi: [
-			'action: "models"',
-			"prefer the highest-reasoning tier of the same family",
-			"Do not block the review on a stale selector",
-			"never treat those aliases as broken selectors or enter this fallback for them",
-		],
+		requiredPi: ["bb provider models pi", "inherit-parent", "auto"],
 		forbiddenCursor: ["Task tool's error message", "slug issue", "broken slugs"],
 	},
 	{
 		rel: "skills/poteto-mode/SKILL.md",
 		cursor:
 			'**Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step** (code-writing delegates, ad-hoc helpers). `/poteto-mode` and `poteto-agent` route through the same wrapper. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own `subagent_type` for diverse-model review. Respect what the skill prescribes, don\'t override to `poteto-agent`.',
-		requiredPi: ["one standalone child", "Put every operation field under `input`"],
+		requiredPi: ["fresh BB Pi worker", "role instructions", "not native Pi child"],
 		forbiddenCursor: ["subagent_type"],
 	},
 	{
@@ -1053,9 +914,10 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)\n- `readonly`: `true`\n\nBuild its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.",
 		requiredPi: [
-			"The same workflow launches `explain`",
-			"`how synthesizer`",
-			"every explorer result",
+			"full report by BB thread ID",
+			"pi_worker",
+			"how synthesizer",
+			"every explorer finding",
 		],
 		forbiddenCursor: ["Task subagent", "how-explainer", "readonly"],
 	},
@@ -1071,9 +933,11 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~/.cursor/rules/pstack-models.mdc` when present. Otherwise use `claude-fable-5-1-thinking-max`, `gpt-5.6-sol-max`, `grok-4.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`. Prefer a different model family from the parent's. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.",
 		requiredPi: [
-			"`arena judge pool`",
-			"async: true",
-			"Read the completed candidate artifacts while the judge runs",
+			"After all Phase B candidates finish",
+			"arena judge pool",
+			"pi_worker",
+			"judge with tools `read`",
+			"Never launch the judge while candidates are writing",
 		],
 		forbiddenCursor: ["arena cross-judge pool", "readonly judge subagent"],
 	},
@@ -1081,18 +945,14 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		rel: "skills/reflect/SKILL.md",
 		cursor:
 			"Pass each template verbatim, substituting the transcript path or digest where marked. Reviewers return findings in the `Task` response body.",
-		requiredPi: ["Each reviewer item uses", "bounded digest", "workflow results"],
+		requiredPi: ["bounded digest", "BB conversation", "full reports", "notices may be abbreviated"],
 		forbiddenCursor: ["Task response body"],
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		cursor:
 			"One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model (default `claude-fable-5-1-thinking-max`), agent mode (`readonly: false`). The synthesizer's quality check includes spot-verifying citations, which can require MCP access. Readonly strips MCPs. Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. The synthesizer returns a structured Accepted / Rejected / Backlog list.",
-		requiredPi: [
-			"`synthesize-reviews` child",
-			"`reflect synthesizer`",
-			"parent spot-verifies citations",
-		],
+		requiredPi: ["pi_worker", "reflect synthesizer", "full review inlined", "spot-check citations"],
 		forbiddenCursor: ["Task` call", "readonly"],
 	},
 	{
@@ -1107,9 +967,10 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search.",
 		requiredPi: [
-			"parent queries each available MCP",
-			"bounded evidence packet",
-			"subagentOnlyExtensions",
+			"coverage map",
+			"null results",
+			"specific MCP or research tools",
+			"does not strip all MCP",
 		],
 		forbiddenCursor: [],
 	},
@@ -1118,10 +979,10 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Subagent config (each):\n- `subagent_type`: `generalPurpose`\n- `model`: your configured why-investigators model (default `grok-4.6-fast-xhigh`)\n- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.",
 		requiredPi: [
-			"Each investigator uses:",
-			'agent: "reviewer"',
-			"`why investigators`",
-			"instruct the investigator to inspect only",
+			"why investigators",
+			"category-research tool allowlist",
+			"not to modify files",
+			"Exclude edit/write and unrestricted bash",
 		],
 		forbiddenCursor: ["Subagent config", "subagent_type", "readonly"],
 	},
@@ -1130,9 +991,10 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Spawn one synthesizer subagent:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured why-synthesizer model (default `claude-fable-5-1-thinking-max`)\n- `readonly`: `false` (agent mode). The synthesizer's quality check spot-verifies citations, which can require MCP access. Readonly/Ask mode strips MCPs and defeats that.\n\nThe synthesizer gets:\n1. The investigator findings, including any null results and any categories skipped with justification\n2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n3. The user's original question\n4. The epistemics framework from `references/epistemics.md`\n5. The synthesizer prompt template from `references/synthesizer-prompt.md`",
 		requiredPi: [
-			"same workflow launches `synthesize-why`",
-			"`why synthesizer`",
-			"parent spot-verifies citations",
+			"pi_worker",
+			"why synthesizer",
+			"including nulls and skipped",
+			"spot-check citations",
 		],
 		forbiddenCursor: ["Spawn one synthesizer", "subagent_type", "readonly"],
 	},
@@ -1156,12 +1018,8 @@ const CALLER_GUIDANCE_CONCEPTS = [
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor: [
-			'- **Worker / verifier.** Always `environment: "cloud"` unless the task needs this machine: `control-ui` or `control-cli` runtime verification (from `cursor-team-kit`). Reading local transcripts under `agent-transcripts/`. Simulators and local IDE state. Auth that exists only here. Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit\'s verifier on a different model family from its worker.',
-			"Size the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Local spawns may reference the standing-orders file by store path. Verbatim paste is for cloud spawns and every resume.",
-			"A sub-coordinator brief adds its track boundary and unit list, its spawn budget with the cloud default and the local exception list, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).",
-			"- Exactly one stacker per stack may run `gt`, serialized within its stack. Record the holder in the standing orders. Restacks run in cloud. A local restack at this scale takes the laptop down.",
-		].join("\n"),
+		cursor:
+			'- **Worker / verifier.** Always `environment: "cloud"` unless the task needs this machine: `control-ui` or `control-cli` runtime verification (from `cursor-team-kit`). Reading local transcripts under `agent-transcripts/`. Simulators and local IDE state. Auth that exists only here. Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit\'s verifier on a different model family from its worker.\nSize the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Local spawns may reference the standing-orders file by store path. Verbatim paste is for cloud spawns and every resume.\nA sub-coordinator brief adds its track boundary and unit list, its spawn budget with the cloud default and the local exception list, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).\n- Exactly one stacker per stack may run `gt`, serialized within its stack. Record the holder in the standing orders. Restacks run in cloud. A local restack at this scale takes the laptop down.',
 		requiredPi: [
 			"`input.async: true`",
 			"Set `input.cwd`",
@@ -1183,10 +1041,11 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explorer` line, default `grok-4.7-xhigh-fast`\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
 		requiredPi: [
-			"workflowScript",
-			"maxSubagentSpawnsPerRun: N + 1",
-			"`how explorers`",
-			'agent: "reviewer"',
+			"2 to 4",
+			"pi_worker",
+			"how explorers",
+			"tools `read`, `grep`, `find`, and `ls`",
+			"without waiting",
 		],
 		forbiddenCursor: ["how explorer`", "readonly", "grok-4.7-xhigh-fast"],
 	},
@@ -1195,9 +1054,11 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~/.cursor/rules/pstack-models.mdc`. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5.6-sol-max`, `grok-4.7-xhigh-fast`. Prefer a different model family from the parent's. Spawn one readonly judge subagent on that model. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves. Don't spawn the judge while candidates are still writing.",
 		requiredPi: [
-			"`arena judge pool`",
-			"async: true",
-			"Read the completed candidate artifacts while the judge runs",
+			"After all Phase B candidates finish",
+			"arena judge pool",
+			"pi_worker",
+			"judge with tools `read`",
+			"Never launch the judge while candidates are writing",
 		],
 		forbiddenCursor: ["arena cross-judge pool", "readonly judge subagent", "claude-opus-5-5-max"],
 	},
@@ -1205,14 +1066,27 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		rel: "skills/swarm/SKILL.md",
 		cursor:
 			'Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the step 4 model, left unset for `auto` or `inherit-parent`. Use `environment: "local"` only when the worker needs access to something on the user\'s computer.',
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
+		requiredPi: [
+			"pi_worker",
+			"coverage slice",
+			"swarm workers",
+			"required tool allowlist",
+			"Desktop is the default",
+			"relevant prepared host",
+			"coverage matrix",
+		],
 		forbiddenCursor: ["Spawn all N workers in one message", "environment:", "run_in_background"],
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		cursor:
 			"One message, three `Task` calls, `subagent_type: generalPurpose`, with `model` set as below, agent mode (`readonly: false`). Reviewers need MCP access for context lookups (tickets, chat threads, observability traces referenced in the transcript). Readonly strips MCPs.",
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: 4", 'runs.run("synthesize-reviews",'],
+		requiredPi: [
+			"three fresh `pi_worker`",
+			"one per lens",
+			"specific research/MCP tools",
+			"not file-writing",
+		],
 		forbiddenCursor: ["Task` calls", "readonly"],
 	},
 	{
@@ -1220,9 +1094,10 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		cursor:
 			"Subagent config (each):\n- `subagent_type`: `generalPurpose`\n- `model`: the `why investigators` line, default `grok-4.7-xhigh-fast`\n- `readonly`: `false` (agent mode). **Do not use readonly/Ask mode.** It strips MCP access, which disables MCP-backed investigators entirely. Investigators still shouldn't write anything.",
 		requiredPi: [
-			"Each investigator uses:",
-			"`why investigators`",
-			"instruct the investigator to inspect only",
+			"why investigators",
+			"category-research tool allowlist",
+			"not to modify files",
+			"Exclude edit/write and unrestricted bash",
 		],
 		forbiddenCursor: ["Subagent config", "subagent_type", "readonly", "grok-4.7-xhigh-fast"],
 	},
@@ -1230,13 +1105,7 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		rel: "skills/interrogate/SKILL.md",
 		cursor:
 			"Launch all reviewers in a single message using the Task tool. Use the `interrogate reviewers` line in `~/.cursor/rules/pstack-models.mdc`, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. If the rule or that line is missing, use the table defaults.",
-		requiredPi: [
-			"workflowScript",
-			"maxSubagentSpawnsPerRun: N",
-			"interrogate reviewers",
-			"list from `~/.pi/agent/pstack/models.json` when present",
-			'agent: "reviewer"',
-		],
+		requiredPi: ["pi_worker", "interrogate reviewers", "per configured entry", "full report"],
 		forbiddenCursor: ["using the Task tool", "pstack-models.mdc"],
 	},
 ];

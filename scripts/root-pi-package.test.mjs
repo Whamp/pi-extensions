@@ -25,9 +25,6 @@ const expectedPiManifest = {
     "./packages/pi-subscription-quota/extensions/subscription-quota/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
-  subagents: {
-    agents: ["./packages/pi-pstack/agents"],
-  },
 };
 
 // Pi provides these itself, so packages list them instead of installing them.
@@ -110,7 +107,6 @@ describe("root Pi package", () => {
     const advertisedPaths = [
       ...packageJson.pi.extensions,
       ...packageJson.pi.skills,
-      ...packageJson.pi.subagents.agents,
     ];
 
     for (const resourcePath of advertisedPaths) {

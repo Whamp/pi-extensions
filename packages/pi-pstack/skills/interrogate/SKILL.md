@@ -33,20 +33,19 @@ Write one clear paragraph. If you're unsure about the intent, ask the user befor
 
 ## Step 3, Spawn Reviewers
 
-Launch all reviewers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "reviewer-a", agent: "reviewer", task, model }])` with one stable-keyed item per reviewer. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. Otherwise use the table defaults.
+Launch fresh `pi_worker` reviewers without waiting between launches. Use `interrogate reviewers`, one reviewer per configured entry; otherwise use the table defaults. Each receives the full bounded brief and a read/search plus relevant research-tool allowlist. Retrieve every full report before synthesis.
 
 | Subagent | Default model |
 |----------|---------------|
 | Reviewer A | inherit-parent |
 | Reviewer B | inherit-parent |
-| Reviewer C | inherit-parent |
 
 For each reviewer:
-- agent: "reviewer"
+- role: "worker"
 - `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
 - `task`: instruct the reviewer to inspect only and not modify files
 
-If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.
+If an explicit model selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.
 
 Read `references/reviewer-prompt.md` and fill in the template with:
 1. The stated intent

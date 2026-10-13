@@ -23,12 +23,24 @@ function withAgentDir<T>(
 ): Promise<T> {
 	const dir = tempDir();
 	const previous = process.env.PI_CODING_AGENT_DIR;
+	const previousThread = process.env.BB_THREAD_ID;
+	const previousProject = process.env.BB_PROJECT_ID;
+	const previousEnvironment = process.env.BB_ENVIRONMENT_ID;
+	delete process.env.BB_THREAD_ID;
+	delete process.env.BB_PROJECT_ID;
+	delete process.env.BB_ENVIRONMENT_ID;
 	process.env.PI_CODING_AGENT_DIR = dir;
 	const jsonPath = join(dir, "pstack", "models.json");
 	const markdownPath = join(dir, "pstack-models.md");
 	return fn({ dir, jsonPath, markdownPath }).finally(() => {
 		if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
 		else process.env.PI_CODING_AGENT_DIR = previous;
+		if (previousThread === undefined) delete process.env.BB_THREAD_ID;
+		else process.env.BB_THREAD_ID = previousThread;
+		if (previousProject === undefined) delete process.env.BB_PROJECT_ID;
+		else process.env.BB_PROJECT_ID = previousProject;
+		if (previousEnvironment === undefined) delete process.env.BB_ENVIRONMENT_ID;
+		else process.env.BB_ENVIRONMENT_ID = previousEnvironment;
 		rmSync(dir, { recursive: true, force: true });
 	});
 }
@@ -144,11 +156,14 @@ describe("pstack extension v2 runtime", () => {
 
 		const { events, entries } = loadExtension();
 		const { ctx } = makeCtx();
-		await events.get("input")?.({
-			type: "input",
-			text: "$poteto-mode",
-			source: "extension",
-		}, ctx);
+		await events.get("input")?.(
+			{
+				type: "input",
+				text: "$poteto-mode",
+				source: "extension",
+			},
+			ctx,
+		);
 		assert.deepEqual(entries, []);
 	});
 
@@ -223,6 +238,18 @@ describe("pstack extension v2 runtime", () => {
 					skillsEnabled,
 				});
 			}
+		});
+	});
+
+	it("adds the shipped BB reference for a projectless BB session", async () => {
+		await withAgentDir(async () => {
+			process.env.BB_THREAD_ID = "personal-worker";
+			const { events } = loadExtension();
+			const { ctx } = makeCtx();
+			await events.get("input")?.({ text: "/skill:poteto-mode task" }, ctx);
+			const result = await events.get("before_agent_start")?.({ systemPrompt: "BASE" }, ctx);
+			assert.match(JSON.stringify(result), /pi_worker/);
+			assert.match(JSON.stringify(result), /poteto-mode\/references\/bb-surface\.md/);
 		});
 	});
 

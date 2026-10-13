@@ -24,17 +24,17 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		lines: [
 			{
 				section: "## Step 2a. Explore",
-				line: "- `model`: `how explorers` (default inherit-parent)",
+				line: "using `how explorers`",
 				roles: ["how explorers"],
 			},
 			{
 				section: "## Step 2b. Direct Explain",
-				line: "- `model`: `how explainer` (default inherit-parent)",
+				line: "using `how explainer`",
 				roles: ["how explainer"],
 			},
 			{
 				section: "## Step 3. Synthesize",
-				line: "- `model`: `how synthesizer` (default inherit-parent)",
+				line: "using `how synthesizer`",
 				roles: ["how synthesizer"],
 			},
 		],
@@ -44,12 +44,12 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		lines: [
 			{
 				section: "## Step 3. Spawn Parallel Investigators",
-				line: "- `model`: `why investigators` (default inherit-parent)",
+				line: "Use `why investigators`",
 				roles: ["why investigators"],
 			},
 			{
 				section: "## Step 4. Synthesize",
-				line: "- `model`: `why synthesizer` (default inherit-parent)",
+				line: "using `why synthesizer`",
 				roles: ["why synthesizer"],
 			},
 		],
@@ -74,7 +74,7 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 			},
 			{
 				section: "### 3. Synthesize",
-				line: "using `reflect synthesizer` (default inherit-parent)",
+				line: "using `reflect synthesizer`",
 				roles: ["reflect synthesizer"],
 			},
 		],
@@ -89,7 +89,7 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 			},
 			{
 				section: "## Phase C: Cross-judge",
-				line: "choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present.",
+				line: "select one model from `arena judge pool`",
 				roles: ["arena judge pool"],
 			},
 		],
@@ -119,12 +119,12 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		lines: [
 			{
 				section: "## Step 3, Spawn Reviewers",
-				line: 'Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present',
+				line: "Use `interrogate reviewers`, one reviewer per configured entry",
 				roles: ["interrogate reviewers"],
 			},
 			{
 				section: "## Step 3, Spawn Reviewers",
-				line: '- agent: "reviewer"',
+				line: "read/search plus relevant research-tool allowlist",
 				roles: [],
 			},
 		],
@@ -184,17 +184,17 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		lines: [
 			{
 				section: "## Subagents",
-				line: "Ordinary judgment uses `judgment`.",
+				line: "Use `judgment` for ordinary decisions",
 				roles: ["judgment"],
 			},
 			{
 				section: "## Subagents",
-				line: "User-facing writing uses `prose`.",
+				line: "`prose` for writing",
 				roles: ["prose"],
 			},
 			{
 				section: "## Subagents",
-				line: "Escalated difficult work uses `hardest tasks`.",
+				line: "`hardest tasks` for difficult work",
 				roles: ["hardest tasks"],
 			},
 			{
@@ -210,12 +210,12 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 			},
 			{
 				section: "## Subagents",
-				line: "Role lines choose only the model.",
+				line: "Role model settings do not grant authority.",
 				roles: [],
 			},
 			{
 				section: "## Subagents",
-				line: "They never grant tools, authority, or isolation.",
+				line: "Writers use isolated workspaces.",
 				roles: [],
 			},
 		],
@@ -400,37 +400,16 @@ describe("pstack role consumers", () => {
 		}
 	});
 
-	it("keeps read-only routed workflows on the reviewer role", () => {
-		const readOnlySkills = [
-			"skills/how/SKILL.md",
-			"skills/why/SKILL.md",
-			"skills/reflect/SKILL.md",
-			"skills/interrogate/SKILL.md",
-		];
-		for (const rel of readOnlySkills) {
-			const text = readPackageFile(rel);
-			assert.equal(
-				text.includes('agent: "worker"'),
-				false,
-				`${rel} launches a write-capable worker for read-only review`,
-			);
-			assert.equal(
-				text.includes('agent: "reviewer"'),
-				true,
-				`${rel} must launch its inspect-only children on the reviewer role`,
-			);
+	it("gives inspect-only BB workers explicit read/search tool selection", () => {
+		for (const name of ["how", "why", "reflect", "interrogate"]) {
+			const text = readPackageFile(`skills/${name}/SKILL.md`);
+			assert.match(text, /pi_worker/, name);
+			assert.match(text, /tools `read`|read\/search/, name);
+			assert.doesNotMatch(text, /subagent\(|workflowScript|pi-subagents/, name);
 		}
 		const arena = readPackageFile("skills/arena/SKILL.md");
-		assert.equal(
-			arena.includes('input: { agent: "reviewer", task, model, async: true }'),
-			true,
-			"arena judge must use the reviewer role",
-		);
-		assert.equal(
-			(arena.match(/agent: "worker"/g) ?? []).length,
-			1,
-			"arena candidates write artifacts and stay on the worker role",
-		);
+		assert.match(arena, /judge with tools `read`, `grep`, `find`, and `ls`/);
+		assert.match(arena, /isolated workspace\/output path/);
 	});
 
 	it("keeps v1-only role names in migration code, tests, and setup docs", () => {

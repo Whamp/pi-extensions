@@ -25,12 +25,12 @@ The N candidates will receive the same prompt, so the prompt is the contract.
 
 1. State the artifact each candidate is producing.
 2. Derive the rubric. State what success looks like for *this* task, then turn it into 3-6 concrete gradeable criteria. The rubric is the picker's tool in Phase D. Candidates only see the task.
-3. Pick the runners. Use `arena runners` from `~/.pi/agent/pstack/models.json` when present. Otherwise default to one each on inherit-parent. An `auto` or `inherit-parent` entry means the parent model, so omit `model` for it. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
+3. Pick the runners. Use `arena runners` from `~/.pi/agent/pstack/models.json` when present. Otherwise default to one each on inherit-parent. An `auto` or `inherit-parent` entry means the parent model, so omit `model` for it. If an explicit selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Never treat `inherit-parent` or `auto` as broken selectors. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.
 4. Assign output paths. Each candidate writes to its own location (a git worktree where possible, otherwise `/tmp/arena-<slug>/candidate-<n>/`), per the **separate-before-serializing-shared-state** principle skill.
 
 ## Phase B: Fan out
 
-Launch the candidates with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "candidate-1", agent: "worker", task, model }])`. Give each candidate the shared grounding path, its own output path, and instructions to produce the artifact and a short rationale.
+Launch N fresh `pi_worker` candidates without waiting between launches. Each gets its `arena runners` model, shared grounding path, its own isolated workspace/output path, and the task to produce an artifact plus rationale. Give the tools required to create and verify its candidate. Record every BB thread ID.
 
 Each rationale names the alternatives the candidate considered and what it rejected.
 
@@ -38,7 +38,7 @@ If a candidate fails to produce output, pass the completed N-1 results to the ju
 
 ## Phase C: Cross-judge
 
-After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent's. Launch the judge with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.
+After all Phase B candidates finish, select one model from `arena judge pool`. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.
 
 ## Phase D: Pick a base
 

@@ -16,7 +16,7 @@ const EXTENSION_COMMANDS = new Set(["/poteto-mode", "/setup-pstack", "/pstack"])
 const CURSOR_FRONTMATTER_KEYS = new Set(["mode", "icon", "color", "reminder", "paths"]);
 
 const CURSOR_SLUG_ALT =
-	"grok-4\\.7-xhigh-fast|claude-opus-5-5-max|grok-4\\.6-fast-xhigh|claude-fable-5-1-thinking-max|gpt-5\\.6-sol-max|claude-opus-5-thinking-xhigh";
+	"claude-opus-5-5-xhigh|grok-4\\.7-xhigh-fast|claude-opus-5-5-max|grok-4\\.6-fast-xhigh|claude-fable-5-1-thinking-max|gpt-5\\.6-sol-max|claude-opus-5-thinking-xhigh";
 const CURSOR_DEFAULT_SLUGS = new RegExp(
 	"`?(?:" + CURSOR_SLUG_ALT + ")`?(?:\\s*,\\s*`?(?:" + CURSOR_SLUG_ALT + ")`?)*",
 	"g",
@@ -35,6 +35,8 @@ export const CLASS_RULES = [
 
 	{ pattern: "skills/*/agents/openai.yaml", class: "pi-only" },
 	{ pattern: "skills/code-review/**", class: "pi-only" },
+	{ pattern: "skills/poteto-help/**", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/references/bb-surface.md", class: "pi-only" },
 	{ pattern: "skills/deslop/**", class: "pi-only" },
 	{ pattern: "skills/setup-pstack/**", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/check-plan.mjs", class: "pi-only" },
@@ -88,13 +90,13 @@ export const SEAMS = [
 		id: "role-line-preamble",
 		cursor:
 			/Each (?:spawn below names|reviewer and the synthesizer name) a role line in the `[^`]+` rule and a default\. Set `model` to that line's value, or to the default if the rule or the line is missing\. Leave `model` unset when the value is `auto` or `inherit-parent`\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\./g,
-		pi: 'Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role\'s selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.',
+		pi: "Each BB Pi worker names a role in `~/.pi/agent/pstack/models.json`. Resolve it through `model-routing`. Aliases copy the resolved parent Pi model. Inspect `bb provider models pi` on the execution host when a selector fails; use only permitted recovery routes. Never treat `inherit-parent` or `auto` as broken selectors.",
 	},
 	{
 		id: "task-rejects-slug",
 		cursor:
 			/If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\./g,
-		pi: 'If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.',
+		pi: "If an explicit selector is unavailable, inspect `bb provider models pi` on the execution host and use only the recovery route permitted by `model-routing`. Never treat `inherit-parent` or `auto` as broken selectors.",
 	},
 	// Transcript locations. Path shape borrowed from backnotprop/pstack Harness
 	// (https://github.com/backnotprop/pstack/blob/main/skills/poteto-mode/SKILL.md#harness)
@@ -163,18 +165,18 @@ export const SEAMS = [
 	{
 		id: "subagent-poteto",
 		cursor: /subagent_type:\s*"poteto-agent"/g,
-		pi: 'subagent({ action: "execute", input: { agent: "poteto-agent", task } })',
+		pi: "pi_worker with the Poteto Mode skill path and the bounded task",
 	},
 	{
 		id: "subagent-sicko",
 		cursor: /subagent_type:\s*"Comment Sicko"/g,
-		pi: 'subagent({ action: "execute", input: { agent: "comment-sicko", task } })',
+		pi: "pi_worker with the Comment Sicko skill path and the bounded task",
 	},
 	{
 		id: "subagent-worker",
 		cursor:
 			/`subagent_type`:\s*`generalPurpose`|subagent_type:\s*"generalPurpose"|subagent_type:\s*`?generalPurpose`?/g,
-		pi: 'agent: "worker"',
+		pi: 'role: "worker"',
 	},
 	{
 		id: "subagent-type-leftover",
@@ -214,17 +216,17 @@ export const SEAMS = [
 	{
 		id: "task-tool",
 		cursor: /(?:the )?Task tool/g,
-		pi: "the subagent catalog",
+		pi: "pi_worker",
 	},
 	{
 		id: "task-response",
 		cursor: /`Task` response body/g,
-		pi: "workflow result",
+		pi: "BB worker report",
 	},
 	{
 		id: "task-schema",
 		cursor: /Task schema/g,
-		pi: "subagent catalog schema",
+		pi: "pi_worker schema",
 	},
 	{
 		id: "background-field",
@@ -249,12 +251,12 @@ export const SEAMS = [
 	{
 		id: "readonly-true",
 		cursor: /`readonly`: `true`/g,
-		pi: "`task`: instruct the child to inspect only and not modify files",
+		pi: '`tools`: `["read", "grep", "find", "ls"]`, plus specifically required read-only research tools',
 	},
 	{
 		id: "readonly-false",
 		cursor: /`readonly`: `false`/g,
-		pi: "`task`: state whether the child may modify files",
+		pi: "`tools`: explicitly list the tools required for this assignment",
 	},
 	{
 		id: "create-skill-builtin",
@@ -546,10 +548,10 @@ const POTETO_INTRO = [
 	"",
 ].join("\n");
 
-const SUBAGENT_DEFAULTS = [
-	'**Defaults for every child launch.** Set `input.async: true` for background work. Pass file pointers instead of inlining context. Select an explicit model per role when `/setup-pstack` configures one. Multiple children or dependent stages use one `subagent({ action: "execute", input: { workflowScript, ... } })` call. Inside the script, use `await runs.all([{ key: "stable-key", ... }])` for fan-out and `return runs.run("stable-key", { ... })` for a direct or final child. Count every later synthesis or review child in `input.maxSubagentSpawnsPerRun` when the workflow sets that limit.',
-	"A child does not inherit ambient MCP or extension tools. Keep MCP lookup in the parent for `why`, `reflect`, `interrogate`, and `code-review` unless the selected custom agent lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`. Do not invent per-call tools.",
-	"Defaults inherit-parent. Ordinary judgment uses `judgment`. User-facing writing uses `prose`. Escalated difficult work uses `hardest tasks`. Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Role lines choose only the model. They never grant tools, authority, or isolation. Code delegates tier by difficulty. The hardest changes (cross-cutting design, gnarly concurrency, subtle algorithms) go to `hardest tasks` when configured, else the parent model, whether the task needs judgment on vague intent or is a precisely specified sequence of steps to execute to the letter. Trivial mechanical edits go to your fast code model. Configured roles resolved through `model-routing` override these defaults and the model choices in the routed skills (`how`, `why`, `arena`, `swarm`, `architect`, `interrogate`, `reflect`). A role with no line keeps its default, and a role line of `inherit-parent` or `auto` runs that role on the parent chat model. Omit `model` in that case. The `code-review` coordinator uses the caller's `model-routing`, spending, and family policy for Audit and adds no model role. Challenge mode reuses the existing `interrogate reviewers` role.",
+const BB_WORKER_DEFAULTS = [
+	"**Defaults for every BB worker launch.** Use `pi_worker` to create a fresh, visible, parented Pi thread. Work runs in the background. Pass a bounded brief and file pointers. Let the coordinator decide fanout, dependency order, retries, judging, and rolling windows. Do not replace its decisions with a workflow script.",
+	"Set an explicit native tool allowlist for the assignment. Read-only reviewers receive read/search tools and the specific research tools they need. Writers use isolated workspaces. Verifiers may need bash to run tests; shell access is not read-only. Role model settings do not grant authority.",
+	"Implementation playbooks use `feature implementation`, `refactoring implementation`, `bug-fix`, `perf-issue`, and `hillclimb`. Resolve role models through `model-routing` and `~/.pi/agent/pstack/models.json`. Defaults inherit the resolved parent Pi model. Use `judgment` for ordinary decisions, `prose` for writing, `hardest tasks` for difficult work, and the matching implementation role for code. Preserve the configured number of reviewers or candidates. An omitted model, `inherit-parent`, or `auto` copies the parent's resolved model and reasoning, never project defaults. Read `references/bb-surface.md` for execution and recovery.",
 ].join("\n\n");
 
 const RETIRED_POTETO_EVIDENCE_BULLET =
@@ -614,7 +616,16 @@ function patchIndependentPrRoutes(text) {
 	return result;
 }
 
+const POTETO_BB_SURFACE = [
+	"## Interaction surface",
+	"",
+	"BB is the interaction surface and Pi runs the agents. Use fresh, nested BB Pi threads for Pstack workers. Read `references/bb-surface.md` before delegation, recovery, or presenting artifacts. `BB_THREAD_ID` alone identifies BB context; projectless work is valid. There is no Herdr or native-child fallback.",
+].join("\n");
+
 function patchPotetoModePi(text) {
+	if (!text.includes("## Interaction surface")) {
+		text = text.replace("## Non-negotiables", `${POTETO_BB_SURFACE}\n\n## Non-negotiables`);
+	}
 	if (!text.includes("`/poteto-mode` enables this mode")) {
 		text = text.replace("# Poteto mode\n\n", `# Poteto mode\n\n${POTETO_INTRO}`);
 	}
@@ -625,7 +636,7 @@ function patchPotetoModePi(text) {
 		}
 		text = text.replace(anchor, `${POTETO_CODE_REVIEW_ROUTING}\n\n${anchor}`);
 	}
-	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, SUBAGENT_DEFAULTS);
+	text = text.replace(/\*\*Defaults for every `Task` call\.\*\*[^\n]*/, BB_WORKER_DEFAULTS);
 	return patchIndependentPrRoutes(text.replace(`${RETIRED_POTETO_EVIDENCE_BULLET}\n`, ""));
 }
 
@@ -888,42 +899,42 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^1\. Spawn `Task` with `subagent_type: "Comment Sicko"`\. Pass the scope\. Do not restate its rules\.$/m,
 		replacement:
-			'1. Spawn Comment Sicko with `subagent({ action: "execute", input: { agent: "comment-sicko", task, async: false } })`. Put the scope in `task`. Do not restate its rules.',
+			"1. Launch a fresh `pi_worker` for Comment Sicko. Pass `../../agents/comment-sicko.md` relative to this skill directory and the scope. The worker reads that prompt and does not delegate further. Allow read/search tools, plus edit/write only when fixing comments is assigned. Do not restate its rules.",
 	},
 	{
 		rel: "skills/how/SKILL.md",
 		pattern:
 			/^Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem\. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explorer model \(default `grok-4\.6-fast-xhigh`\)\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references\/explorer-prompt\.md` with its angle filled in\. Then go to Step 3\.$/m,
 		replacement:
-			'Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "worker", task, model }])`, then return `runs.run("explain", { agent: "worker", task, model })` with the explorer outputs.\n\nEach explorer uses:\n- agent: "worker"\n- `model`: `how explorers` (default inherit-parent)\n- `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only\n\nThen go to Step 3.',
+			"Decompose the question into 2 to 4 distinct exploration angles. Launch a fresh `pi_worker` per angle using `how explorers` and tools `read`, `grep`, `find`, and `ls`. Each gets `references/explorer-prompt.md` with its angle filled in. Launch all ready explorers without waiting for one to finish. Then go to Step 3.",
 	},
 	{
 		rel: "skills/how/SKILL.md",
 		pattern:
-			/^Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model \(default `claude-fable-5-1-thinking-max`\)\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` without the explorer-findings section\. Go to Step 4\.$/m,
+			/(?:^Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model \(default `(?:claude-fable-5-1-thinking-max|claude-opus-5-5-xhigh)`\)\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` without the explorer-findings section\. Go to Step 4\.$|^Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explainer` line, default `claude-opus-5-5-xhigh`\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` without the explorer-findings section\. Go to Step 4\.$)/m,
 		replacement:
-			'Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only\n\nGo to Step 4.',
+			"Launch one fresh `pi_worker` using `how explainer` and tools `read`, `grep`, `find`, and `ls`. Build its task from `references/explainer-prompt.md` without the explorer findings. Wait for its BB completion report, then go to Step 4.",
 	},
 	{
 		rel: "skills/how/SKILL.md",
 		pattern:
-			/^Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model \(default `claude-fable-5-1-thinking-max`\)\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` with every explorer's findings filled in\.$/m,
+			/(?:^Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model \(default `(?:claude-fable-5-1-thinking-max|claude-opus-5-5-xhigh)`\)\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` with every explorer's findings filled in\.$|^Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explainer` line, default `claude-opus-5-5-xhigh`\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` with every explorer's findings filled in\.$)/m,
 		replacement:
-			'The same workflow launches `explain` after every explorer settles using:\n- agent: "worker"\n- `model`: `how synthesizer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only',
+			"Once all explorers finish, retrieve each full report by BB thread ID. Launch a fresh `pi_worker` using `how synthesizer` and tools `read`, `grep`, `find`, and `ls`. Give it `references/explainer-prompt.md` with every explorer finding filled in.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
 		pattern:
 			/^Spawn all N subagents in one message with `run_in_background: true`, each with the task, the path to the shared grounding, its own output path, and instructions to produce both the artifact and a short rationale\.$/m,
 		replacement:
-			'Launch the candidates with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "candidate-1", agent: "worker", task, model }])`. Give each candidate the shared grounding path, its own output path, and instructions to produce the artifact and a short rationale.',
+			"Launch N fresh `pi_worker` candidates without waiting between launches. Each gets its `arena runners` model, shared grounding path, its own isolated workspace/output path, and the task to produce an artifact plus rationale. Give the tools required to create and verify its candidate. Record every BB thread ID.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
 		pattern:
-			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~\/\.cursor\/rules\/pstack-models\.mdc` when present\. Otherwise use `claude-fable-5-1-thinking-max`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
+			/(?:^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~\/\.cursor\/rules\/pstack-models\.mdc` when present\. Otherwise use `(?:claude-fable-5-1-thinking-max|claude-opus-5-5-xhigh)`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$|^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-xhigh` and `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$)/m,
 		replacement:
-			'After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent\'s. Launch the judge with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.',
+			"After all Phase B candidates finish, select one model from `arena judge pool`. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
@@ -937,35 +948,35 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the configured model\. Use `environment: "local"` only when the worker needs access to something on the user's computer\.$/m,
 		replacement:
-			'Launch all N workers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "worker-<slice>", agent: "worker", task, model }])`. Give each worker a stable key and the configured model. Omit `model` when the role inherits the parent.',
+			"Launch N fresh `pi_worker` threads without waiting between launches. Each gets its coverage slice, `swarm workers` model, required tool allowlist, workspace, and report contract. Desktop is the default; specialist work runs on its relevant prepared host. Record each thread ID in the coverage matrix.",
 	},
 	{
 		rel: "skills/swarm/SKILL.md",
 		pattern:
 			/^When a worker must start from a non-default pushed branch, pass `cloud_base_branch`\.$/m,
 		replacement:
-			"Set `input.cwd` to an existing checkout. To create a managed checkout from a Git ref, set `input.worktree: true` and `input.baseRef`.",
+			"Use the repository branch tool to prepare the required checkout at the intended base ref. Attach BB to that isolated workspace; do not create a nested worktree.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:
-			/^One message, three `Task` calls, `subagent_type: generalPurpose`, explicit `model:` on each, agent mode \(`readonly: false`\)\. Reviewers need MCP access for context lookups \(tickets, chat threads, observability traces referenced in the transcript\)\. Readonly strips MCPs\.$/m,
+			/(?:^One message, three `Task` calls, `subagent_type: generalPurpose`, explicit `model:` on each, agent mode \(`readonly: false`\)\. Reviewers need MCP access for context lookups \(tickets, chat threads, observability traces referenced in the transcript\)\. Readonly strips MCPs\.$|^One message, three `Task` calls, `subagent_type: generalPurpose`, with `model` set as below, agent mode \(`readonly: false`\)\. Reviewers need MCP access for context lookups \(tickets, chat threads, observability traces referenced in the transcript\)\. Readonly strips MCPs\.$)/m,
 		replacement:
-			'The parent resolves any ticket, chat, document, observability, error-tracker, or analytics references from the transcript before launch. Put the transcript path and fetched evidence in one bounded digest. Children do not inherit the parent\'s MCP or extension tools.\n\nLaunch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the three reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.',
+			"Launch three fresh `pi_worker` reviewers without waiting between launches, one per lens using the table below. Allow read/search and the specific research/MCP tools needed to check transcript references, but not file-writing tools. Pi tool allowlists do not inherently strip MCP access. Record their BB thread IDs.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:
 			/^Pass each template verbatim, substituting the transcript path or digest where marked\. Reviewers return findings in the `Task` response body\.$/m,
 		replacement:
-			'Each reviewer item uses `agent: "worker"`, its configured model, and a task that says to inspect only. Pass each template verbatim, substituting the transcript path or the bounded digest where marked. Reviewers return findings through their workflow results.',
+			"Pass each template verbatim, substituting this run's transcript path or bounded digest where marked. Each reviewer returns findings in its BB conversation. Retrieve full reports after completion; parent notices may be abbreviated.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:
-			/^One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model \(default `claude-fable-5-1-thinking-max`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer\.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$/m,
+			/(?:^One `Task` call, `subagent_type: generalPurpose`, using your configured reflect-judgment model \(default `(?:claude-fable-5-1-thinking-max|claude-opus-5-5-xhigh)`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer\.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$|^One `Task` call, `subagent_type: generalPurpose`, with `model` from the `reflect judgment, divergent, synthesizer` line \(default `claude-opus-5-5-xhigh`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer\.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$)/m,
 		replacement:
-			"The workflow's `synthesize-reviews` child uses `agent: \"worker\"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.",
+			"After all reviewers finish, launch a fresh `pi_worker` using `reflect synthesizer`. Allow read/search and the research tools needed to spot-check citations. Use `references/synthesizer.md` verbatim with each full review inlined. It returns Accepted / Rejected / Backlog lists. The coordinator checks the synthesis against the evidence.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
@@ -979,49 +990,49 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^Aim for a complete \*\*coverage map\*\*, not a minimal one\. Document the null, don't skip the search\.$/m,
 		replacement:
-			"Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. A child does not inherit ambient MCP or extension tools. Use a custom agent for a child-side lookup only when that agent explicitly lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`.",
+			"Aim for a complete **coverage map**, not a minimal one. Document null results. Give investigators read/search tools and the specific MCP or research tools for their evidence category. Native Pi tool selection does not strip all MCP access.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Launch all matching investigators in a single message so they run concurrently\. Don't ask one agent to cover multiple MCPs\.$/m,
 		replacement:
-			'Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await the investigators with `runs.all([{ key: "investigate-<category>", agent: "worker", task, model }])`, then return `runs.run("synthesize-why", { agent: "worker", task, model })` with their outputs. `N` is the number of evidence categories launched. Don\'t ask one agent to cover multiple categories.',
+			"Launch a fresh `pi_worker` per matching evidence category without waiting between launches. Use `why investigators`. Do not ask one investigator to cover multiple categories. Once all finish, retrieve their full reports and launch the synthesizer in Step 4.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Subagent config \(each\):\n- `subagent_type`: `generalPurpose`\n- `model`: your configured why-investigators model \(default `grok-4\.6-fast-xhigh`\)\n- `readonly`: `false` \(agent mode\)\. \*\*Do not use readonly\/Ask mode\.\*\* It strips MCP access, which disables MCP-backed investigators entirely\. Investigators still shouldn't write anything\.$/m,
 		replacement:
-			'Each investigator uses:\n- agent: "worker"\n- `model`: `why investigators` (default inherit-parent)\n- `task`: instruct the investigator to inspect only',
+			"Each investigator uses `why investigators`, an explicit read/search and category-research tool allowlist, and an instruction not to modify files. Exclude edit/write and unrestricted bash unless the assignment requires shell execution.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Each investigator gets:\n1\. The base prompt from `references\/investigator-prompt\.md`\n2\. The category playbook `references\/sources\/<source>\.md` for the selected MCP, adapted from the examples in `references\/source-playbook\.md`\n3\. The cross-cutting `references\/sources\/incident-postmortem\.md` \*\*if the target code looks defensive\*\* \(null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers\)\n4\. The code anchor from Step 2 \(file paths, symbols, commit hashes, PR numbers, ticket IDs\)\n5\. The user's original question\n\n(?=### Investigator roster)/m,
 		replacement:
-			"Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` as an analysis rubric for the parent's evidence packet, not as child tool instructions\n3. The parent's evidence packet for that category, including null results and gaps\n4. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)\n5. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n6. The user's original question\n\n",
+			"Each investigator gets:\n1. The base prompt from `references/investigator-prompt.md`\n2. The category playbook `references/sources/<source>.md` and the matching research/MCP tools for direct source lookup\n3. Any evidence already collected for that category, including null results and gaps\n4. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)\n5. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n6. The user's original question\n\n",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Spawn one investigator per category that has a matching MCP\. Each owns exactly one tool or MCP\.$/m,
 		replacement:
-			"Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns exactly one evidence packet.",
+			"Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns one source category and performs its own permitted source lookups.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
-			/^Spawn one synthesizer subagent:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured why-synthesizer model \(default `claude-fable-5-1-thinking-max`\)\n- `readonly`: `false` \(agent mode\)\. The synthesizer's quality check spot-verifies citations, which can require MCP access\. Readonly\/Ask mode strips MCPs and defeats that\.\n\nThe synthesizer gets:\n1\. The investigator findings, including any null results and any categories skipped with justification\n2\. The code anchor from Step 2 \(file paths, symbols, commit hashes, PR numbers, ticket IDs\)\n3\. The user's original question\n4\. The epistemics framework from `references\/epistemics\.md`\n5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$/m,
+			/(?:^Spawn one synthesizer subagent:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured why-synthesizer model \(default `(?:claude-fable-5-1-thinking-max|claude-opus-5-5-xhigh)`\)\n- `readonly`: `false` \(agent mode\)\. The synthesizer's quality check spot-verifies citations, which can require MCP access\. Readonly\/Ask mode strips MCPs and defeats that\.\n\nThe synthesizer gets:\n1\. The investigator findings, including any null results and any categories skipped with justification\n2\. The code anchor from Step 2 \(file paths, symbols, commit hashes, PR numbers, ticket IDs\)\n3\. The user's original question\n4\. The epistemics framework from `references\/epistemics\.md`\n5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$|^Spawn one synthesizer subagent:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `why synthesizer` line, default `claude-opus-5-5-xhigh`\n- `readonly`: `false` \(agent mode\)\. The synthesizer's quality check spot-verifies citations, which can require MCP access\. Readonly\/Ask mode strips MCPs and defeats that\.\n\nThe synthesizer gets:\n1\. The investigator findings, including any null results and any categories skipped with justification\n2\. The code anchor from Step 2 \(file paths, symbols, commit hashes, PR numbers, ticket IDs\)\n3\. The user's original question\n4\. The epistemics framework from `references\/epistemics\.md`\n5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$)/m,
 		replacement:
-			'The same workflow launches `synthesize-why` after every investigator settles. It uses:\n- agent: "worker"\n- `model`: `why synthesizer` (default inherit-parent)\n\nThe synthesizer gets:\n1. The investigator findings, including any null results and any categories skipped with justification\n2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n3. The user\'s original question\n4. The epistemics framework from `references/epistemics.md`\n5. The synthesizer prompt template from `references/synthesizer-prompt.md`\n\nAfter the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.',
+			"After all investigators finish, launch a fresh `pi_worker` using `why synthesizer`. Give it full findings, including nulls and skipped categories, code anchors, the original question, the epistemics framework, and `references/synthesizer-prompt.md`. Allow read/search and the research tools needed to spot-check citations.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
 		pattern:
 			/^Launch all reviewers in a single message using the Task tool\. Use the `interrogate reviewers` list from `~\/\.cursor\/rules\/pstack-models\.mdc` when present, one reviewer per entry, extending or shrinking the Reviewer A\/B\/C\/D labels below to the configured entry count\. Otherwise use the table defaults\.$/m,
 		replacement:
-			'Launch all reviewers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "reviewer-a", agent: "worker", task, model }])` with one stable-keyed item per reviewer. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C/D labels below to the configured entry count. Otherwise use the table defaults.',
+			"Launch fresh `pi_worker` reviewers without waiting between launches. Use `interrogate reviewers`, one reviewer per configured entry; otherwise use the table defaults. Each receives the full bounded brief and a read/search plus relevant research-tool allowlist. Retrieve every full report before synthesis.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -1033,21 +1044,21 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^If a model slug is rejected as unresolvable when you try to spawn the subagent, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the highest-reasoning tier of the same family\), spawn with the valid slug, and open a separate PR to update the configured value or default table\. Do not block the review on the slug issue\. If the configured value is `inherit-parent` or `auto`, omit `model` instead\. Never treat those aliases as broken slugs or enter this fallback for them\.$/m,
 		replacement:
-			'If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.',
+			"If an explicit model selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.",
 	},
 	{
 		rel: "skills/poteto-mode/SKILL.md",
 		pattern:
 			/^\*\*Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step\*\* \(code-writing delegates, ad-hoc helpers\)\. `\/poteto-mode` and `poteto-agent` route through the same wrapper\. Routed workflow skills \(`how`, `why`, `interrogate`, `reflect`, `swarm`\) set their own `subagent_type` for diverse-model review\. Respect what the skill prescribes, don't override to `poteto-agent`\.$/m,
 		replacement:
-			'**Use `subagent({ action: "execute", input: { agent: "poteto-agent", task } })` for one standalone child inside a playbook step.** Put every operation field under `input`. `/poteto-mode` and `poteto-agent` route through the same wrapper. Routed workflow skills (`how`, `why`, `interrogate`, `reflect`, `swarm`) set their own agent for diverse-model review. Respect what the skill prescribes. Do not override it with `poteto-agent`.',
+			"**Use a fresh BB Pi worker for any delegated playbook step.** Pass this skill path for Poteto behavior. Routed How, Why, Interrogate, Reflect, Swarm, Arena, and Architect skills retain their own models and role instructions. Use `pi_worker`, not native Pi child runtimes.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
 		pattern:
 			/Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin\/<branch>` between them\./,
 		replacement:
-			"Multiple `subagent()` launches on the same branch use `input.worktree: true` with `input.baseRef` for separate managed checkouts. When reusing one existing checkout, serialize the launches and run `git fetch && git reset --hard origin/<branch>` between them.",
+			"Parallel BB Pi workers use separately prepared Lane workspaces. Attach BB to each existing workspace; do not nest another worktree. One writer owns each checkout.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
@@ -1058,7 +1069,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
 		pattern: /Agents are spawned, resumed, and drained only through the Task tool\./,
 		replacement:
-			'Launch one child with `subagent({ action: "execute", input: { agent, task, async: true } })`. Launch each parallel or dependent wave with one execute call whose `input.workflowScript` uses stable-keyed `runs.run` and `runs.all` steps.',
+			"Launch a fresh `pi_worker` for each delegated task. Record its parented BB thread ID and tool allowlist. The coordinator decides fanout and dependency order; no deterministic workflow script replaces its judgment.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
@@ -1100,7 +1111,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^- Never resume an agent to check on it\. A resume restarts an idle agent\. Probe read-only: the ledger, `units\.tsv`, `gh`, pushed branches, the cloud agent's status in the Cursor dashboard\. Transcript mtime is not liveness\.$/m,
 		replacement:
-			'- Never resume an agent to check on it. A resume restarts an idle agent. Probe without mutation through the ledger, `units.tsv`, `gh`, pushed branches, and `subagent({ action: "status", input: { id } })`. Transcript mtime is not liveness.',
+			"- Never send a message just to check liveness. Inspect BB thread status and output, persisted units, ledger, and PR heads. Stop and replace only after confirming the old writer cannot continue.",
 	},
 	{
 		rel: "skills/poteto-mode/playbooks/orchestrate.md",
@@ -1210,40 +1221,40 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem\. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explorer` line, default `grok-4\.7-xhigh-fast`\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references\/explorer-prompt\.md` with its angle filled in\. Then go to Step 3\.$/m,
 		replacement:
-			'Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "worker", task, model }])`, then return `runs.run("explain", { agent: "worker", task, model })` with the explorer outputs.\n\nEach explorer uses:\n- agent: "worker"\n- `model`: `how explorers` (default inherit-parent)\n- `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only\n\nThen go to Step 3.',
+			"Decompose the question into 2 to 4 distinct exploration angles. Launch a fresh `pi_worker` per angle using `how explorers` and tools `read`, `grep`, `find`, and `ls`. Each gets `references/explorer-prompt.md` with its angle filled in. Launch all ready explorers without waiting for one to finish. Then go to Step 3.",
 	},
 	{
 		rel: "skills/how/SKILL.md",
 		pattern:
 			/^Spawn one Task subagent that explores and explains in one pass:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explainer` line, default `claude-opus-5-5-max`\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` without the explorer-findings section\. Go to Step 4\.$/m,
 		replacement:
-			'Launch one standalone child with `subagent({ action: "execute", input: { agent: "worker", task, model, async: false } })` using:\n- agent: "worker"\n- `model`: `how explainer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only\n\nGo to Step 4.',
+			"Launch one fresh `pi_worker` using `how explainer` and tools `read`, `grep`, `find`, and `ls`. Build its task from `references/explainer-prompt.md` without the explorer findings. Wait for its BB completion report, then go to Step 4.",
 	},
 	{
 		rel: "skills/how/SKILL.md",
 		pattern:
 			/^Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explainer` line, default `claude-opus-5-5-max`\n- `readonly`: `true`\n\nBuild its prompt from `references\/explainer-prompt\.md` with every explorer's findings filled in\.$/m,
 		replacement:
-			'The same workflow launches `explain` after every explorer settles using:\n- agent: "worker"\n- `model`: `how synthesizer` (default inherit-parent)\n- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only',
+			"Once all explorers finish, retrieve each full report by BB thread ID. Launch a fresh `pi_worker` using `how synthesizer` and tools `read`, `grep`, `find`, and `ls`. Give it `references/explainer-prompt.md` with every explorer finding filled in.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
 		pattern:
-			/^3\. Pick the runners\. Use the `arena runners` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, default to one each on `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it\. If the Task tool rejects a configured entry, run that seat on its family's default and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use `claude-opus-5-5-max`\. If it rejects a default, use the closest valid slug of the same family from its error message\. Spawn more when the arena covers multiple design directions\. Same model N times when the work is generation-bound rather than judgment-sensitive\.$/m,
+			/(?:^3\. Pick the runners\. Use the `arena runners` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, default to one each on `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it\. If the Task tool rejects a configured entry, run that seat on its family's default and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use `claude-opus-5-5-max`\. If it rejects a default, use the closest valid slug of the same family from its error message\. Spawn more when the arena covers multiple design directions\. Same model N times when the work is generation-bound rather than judgment-sensitive\.$|^3\. Pick the runners\. Use the `arena runners` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, default to one each on `claude-opus-5-5-xhigh` and `grok-4\.7-xhigh-fast`\. An `auto` or `inherit-parent` entry in this line or the cross-judge line means the parent model, so omit `model` for it\. If the Task tool rejects a configured entry, run that seat on its family's default and say so\. Families go by prefix: `claude-\*` and `grok-\*`\. With no family match, use `claude-opus-5-5-xhigh`\. If it rejects a default, use the closest valid slug of the same family from its error message\. Spawn more when the arena covers multiple design directions\. Same model N times when the work is generation-bound rather than judgment-sensitive\.$)/m,
 		replacement:
-			'3. Pick the runners. Use `arena runners` from `~/.pi/agent/pstack/models.json` when present. Otherwise default to one each on inherit-parent. An `auto` or `inherit-parent` entry means the parent model, so omit `model` for it. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.',
+			"3. Pick the runners. Use `arena runners` from `~/.pi/agent/pstack/models.json` when present. Otherwise default to one each on inherit-parent. An `auto` or `inherit-parent` entry means the parent model, so omit `model` for it. If an explicit selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Never treat `inherit-parent` or `auto` as broken selectors. Spawn more when the arena covers multiple design directions. Same model N times when the work is generation-bound rather than judgment-sensitive.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
 		pattern:
 			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
 		replacement:
-			'After the Phase B workflow completes, choose one model from the `arena judge pool` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. Prefer a different model family from the parent\'s. Launch the judge with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: true } })`. Its task says to inspect only, read the rubric and candidates by path label, score each criterion, and recommend a base with rationale. Read the completed candidate artifacts while the judge runs. The judge never runs while candidates are writing.',
+			"After all Phase B candidates finish, select one model from `arena judge pool`. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.",
 	},
 	{
 		rel: "skills/architect/SKILL.md",
 		pattern:
-			/^Take the runners from the `architect runners` line in the `pstack-models\.mdc` rule, in place of the `arena runners` line\. If the rule or that line is missing, use `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Alias and rejected entries follow the runner rules in the \*\*arena\*\* skill's Phase A\.$/m,
+			/(?:^Take the runners from the `architect runners` line in the `pstack-models\.mdc` rule, in place of the `arena runners` line\. If the rule or that line is missing, use `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Alias and rejected entries follow the runner rules in the \*\*arena\*\* skill's Phase A\.$|^Take the runners from the `architect runners` line in the `pstack-models\.mdc` rule, in place of the `arena runners` line\. If the rule or that line is missing, use `claude-opus-5-5-xhigh` and `grok-4\.7-xhigh-fast`\. Alias and rejected entries follow the runner rules in the \*\*arena\*\* skill's Phase A\.$)/m,
 		replacement:
 			"Override Arena's candidate selector with `architect runners` (defaults inherit-parent). Require at least two candidates. The Arena judge still uses `arena judge pool`.",
 	},
@@ -1252,40 +1263,40 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^4\. Pick the worker model from the `swarm workers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, use `grok-4\.7-xhigh-fast`\. For `auto` or `inherit-parent`, omit `model` so the workers run on the parent model\. If the Task tool rejects a slug, use the default and say so\. If it rejects the default, use the closest valid slug of the same family from its error message\. For a model race, name each arm's model up front\.$/m,
 		replacement:
-			'4. Pick the worker model from `swarm workers` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. For `auto` or `inherit-parent`, omit `model`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors. For a model race, name each arm\'s model up front.',
+			"4. Pick the worker model from `swarm workers` in `~/.pi/agent/pstack/models.json` when present. Otherwise use inherit-parent. For `auto` or `inherit-parent`, omit `model`. If an explicit selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Never treat `inherit-parent` or `auto` as broken selectors. For a model race, name each arm's model up front.",
 	},
 	{
 		rel: "skills/swarm/SKILL.md",
 		pattern:
 			/^Spawn all N workers in one message with `subagent_type: generalPurpose`, `environment: "cloud"`, `run_in_background: true`, and the step 4 model, left unset for `auto` or `inherit-parent`\. Use `environment: "local"` only when the worker needs access to something on the user's computer\.$/m,
 		replacement:
-			'Launch all N workers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "worker-<slice>", agent: "worker", task, model }])`. Give each worker a stable key and the configured model. Omit `model` when the role inherits the parent.',
+			"Launch N fresh `pi_worker` threads without waiting between launches. Each gets its coverage slice, `swarm workers` model, required tool allowlist, workspace, and report contract. Desktop is the default; specialist work runs on its relevant prepared host. Record each thread ID in the coverage matrix.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Subagent config \(each\):\n- `subagent_type`: `generalPurpose`\n- `model`: the `why investigators` line, default `grok-4\.7-xhigh-fast`\n- `readonly`: `false` \(agent mode\)\. \*\*Do not use readonly\/Ask mode\.\*\* It strips MCP access, which disables MCP-backed investigators entirely\. Investigators still shouldn't write anything\.$/m,
 		replacement:
-			'Each investigator uses:\n- agent: "worker"\n- `model`: `why investigators` (default inherit-parent)\n- `task`: instruct the investigator to inspect only',
+			"Each investigator uses `why investigators`, an explicit read/search and category-research tool allowlist, and an instruction not to modify files. Exclude edit/write and unrestricted bash unless the assignment requires shell execution.",
 	},
 	{
 		rel: "skills/why/SKILL.md",
 		pattern:
 			/^Spawn one synthesizer subagent:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `why synthesizer` line, default `claude-opus-5-5-max`\n- `readonly`: `false` \(agent mode\)\. The synthesizer's quality check spot-verifies citations, which can require MCP access\. Readonly\/Ask mode strips MCPs and defeats that\.\n\nThe synthesizer gets:\n1\. The investigator findings, including any null results and any categories skipped with justification\n2\. The code anchor from Step 2 \(file paths, symbols, commit hashes, PR numbers, ticket IDs\)\n3\. The user's original question\n4\. The epistemics framework from `references\/epistemics\.md`\n5\. The synthesizer prompt template from `references\/synthesizer-prompt\.md`$/m,
 		replacement:
-			'The same workflow launches `synthesize-why` after every investigator settles. It uses:\n- agent: "worker"\n- `model`: `why synthesizer` (default inherit-parent)\n\nThe synthesizer gets:\n1. The investigator findings, including any null results and any categories skipped with justification\n2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)\n3. The user\'s original question\n4. The epistemics framework from `references/epistemics.md`\n5. The synthesizer prompt template from `references/synthesizer-prompt.md`\n\nAfter the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.',
+			"After all investigators finish, launch a fresh `pi_worker` using `why synthesizer`. Give it full findings, including nulls and skipped categories, code anchors, the original question, the epistemics framework, and `references/synthesizer-prompt.md`. Allow read/search and the research tools needed to spot-check citations.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:
 			/^One message, three `Task` calls, `subagent_type: generalPurpose`, with `model` set as below, agent mode \(`readonly: false`\)\. Reviewers need MCP access for context lookups \(tickets, chat threads, observability traces referenced in the transcript\)\. Readonly strips MCPs\.$/m,
 		replacement:
-			'The parent resolves any ticket, chat, document, observability, error-tracker, or analytics references from the transcript before launch. Put the transcript path and fetched evidence in one bounded digest. Children do not inherit the parent\'s MCP or extension tools.\n\nLaunch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the three reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.',
+			"Launch three fresh `pi_worker` reviewers without waiting between launches, one per lens using the table below. Allow read/search and the specific research/MCP tools needed to check transcript references, but not file-writing tools. Pi tool allowlists do not inherently strip MCP access. Record their BB thread IDs.",
 	},
 	{
 		rel: "skills/reflect/SKILL.md",
 		pattern:
-			/^\| Lens \| Role line \| Default `model` \| Prompt template \|\n\|---\|---\|---\|---\|\n\| Judgment \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-max` \| `references\/judgment-reviewer.md` \|\n\| Tooling \| `reflect tooling` \| `gpt-5\.6-sol-max` \| `references\/tooling-reviewer.md` \|\n\| Divergent \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-max` \| `references\/divergent-reviewer.md` \|$/m,
+			/(?:^\| Lens \| Role line \| Default `model` \| Prompt template \|\n\|---\|---\|---\|---\|\n\| Judgment \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-max` \| `references\/judgment-reviewer.md` \|\n\| Tooling \| `reflect tooling` \| `gpt-5\.6-sol-max` \| `references\/tooling-reviewer.md` \|\n\| Divergent \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-max` \| `references\/divergent-reviewer.md` \|$|^\| Lens \| Role line \| Default `model` \| Prompt template \|\n\|---\|---\|---\|---\|\n\| Judgment \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-xhigh` \| `references\/judgment-reviewer\.md` \|\n\| Tooling \| `reflect tooling` \| `grok-4\.7-xhigh-fast` \| `references\/tooling-reviewer\.md` \|\n\| Divergent \| `reflect judgment, divergent, synthesizer` \| `claude-opus-5-5-xhigh` \| `references\/divergent-reviewer\.md` \|$)/m,
 		replacement:
 			"| Lens | `model` | Prompt template |\n|---|---|---|\n| Judgment | `reflect judgment reviewer` (default inherit-parent) | `references/judgment-reviewer.md` |\n| Tooling | `reflect tooling reviewer` (default inherit-parent) | `references/tooling-reviewer.md` |\n| Divergent | `reflect divergent reviewer` (default inherit-parent) | `references/divergent-reviewer.md` |",
 	},
@@ -1294,21 +1305,21 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^One `Task` call, `subagent_type: generalPurpose`, with `model` from the `reflect judgment, divergent, synthesizer` line \(default `claude-opus-5-5-max`\), agent mode \(`readonly: false`\)\. The synthesizer's quality check includes spot-verifying citations, which can require MCP access\. Readonly strips MCPs\. Use `references\/synthesizer.md` verbatim, with each reviewer's full output inlined where marked\. The synthesizer returns a structured Accepted \/ Rejected \/ Backlog list\.$/m,
 		replacement:
-			"The workflow's `synthesize-reviews` child uses `agent: \"worker\"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.",
+			"After all reviewers finish, launch a fresh `pi_worker` using `reflect synthesizer`. Allow read/search and the research tools needed to spot-check citations. Use `references/synthesizer.md` verbatim with each full review inlined. It returns Accepted / Rejected / Backlog lists. The coordinator checks the synthesis against the evidence.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
 		pattern:
-			/^Launch all reviewers in a single message using the Task tool\. Use the `interrogate reviewers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`, one reviewer per entry, extending or shrinking the Reviewer A\/B\/C labels below to the configured entry count\. If the rule or that line is missing, use the table defaults\.$/m,
+			/(?:^Launch all reviewers in a single message using the Task tool\. Use the `interrogate reviewers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`, one reviewer per entry, extending or shrinking the Reviewer A\/B\/C labels below to the configured entry count\. If the rule or that line is missing, use the table defaults\.$|^Launch all reviewers in a single message using the Task tool\. Use the `interrogate reviewers` line in `~\/\.cursor\/rules\/pstack-models\.mdc`, one reviewer per entry, extending or shrinking the Reviewer A\/B labels below to the configured entry count\. If the rule or that line is missing, use the table defaults\.$)/m,
 		replacement:
-			'Launch all reviewers with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N, workflowScript } })` call. In `workflowScript`, use `return await runs.all([{ key: "reviewer-a", agent: "worker", task, model }])` with one stable-keyed item per reviewer. Use the `interrogate reviewers` list from `~/.pi/agent/pstack/models.json` when present, one reviewer per entry, extending or shrinking the Reviewer A/B/C labels below to the configured entry count. Otherwise use the table defaults.',
+			"Launch fresh `pi_worker` reviewers without waiting between launches. Use `interrogate reviewers`, one reviewer per configured entry; otherwise use the table defaults. Each receives the full bounded brief and a read/search plus relevant research-tool allowlist. Retrieve every full report before synthesis.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
 		pattern:
-			/^If the Task tool rejects a configured entry, run that reviewer on the table default of its family and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use Reviewer A's default\. If it rejects a table default, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the highest-reasoning tier of the same family\), spawn with it, and open a separate PR to update the default table\. Do not block the review on the slug issue\. Never treat an alias entry as a rejected slug or apply either fallback to it\.$/m,
+			/(?:^If the Task tool rejects a configured entry, run that reviewer on the table default of its family and say so\. Families go by prefix: `claude-\*`, `gpt-\*`, and `grok-\*`\. With no family match, use Reviewer A's default\. If it rejects a table default, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the highest-reasoning tier of the same family\), spawn with it, and open a separate PR to update the default table\. Do not block the review on the slug issue\. Never treat an alias entry as a rejected slug or apply either fallback to it\.$|^If the Task tool rejects a configured entry, run that reviewer on the table default of its family and say so\. Families go by prefix: `claude-\*` and `grok-\*`\. With no family match, use Reviewer A's default\. If it rejects a table default, check the valid slugs in the Task tool's error message, pick the closest equivalent \(prefer the same family and reasoning tier\), spawn with it, and open a separate PR to update the default table\. Do not block the review on the slug issue\. Never treat an alias entry as a rejected slug or apply either fallback to it\.$)/m,
 		replacement:
-			'If an explicit model selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.',
+			"If an explicit model selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.",
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -1319,7 +1330,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 ];
 
-/** Rewrite executable caller guidance to the stateless catalog and keyed workflow DSL. */
+/** Translate executable Cursor caller guidance to the Pi role and BB worker contracts. */
 export function applyPiCallerGuidanceTransforms(text, rel) {
 	for (const replacement of PI_CALLER_GUIDANCE_REPLACEMENTS) {
 		if (replacement.rel === rel) {
