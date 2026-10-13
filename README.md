@@ -17,14 +17,29 @@ npm under `@whamp` once released.
 - [`@whamp/pi-local-vllm-thinking-budget`](./packages/pi-local-vllm-thinking-budget): per-model thinking budgets for local vLLM models.
 - [`@whamp/pi-jev-pruner`](./packages/pi-jev-pruner): bash output pruned with TypeSafe Jev before the model reads it, ported from a Claude Code plugin.
 
-The root Pi manifest loads eleven packages, so one git install gets the full
-set. Each package also has its own manifest and can be installed alone.
-`pi-jev-pruner` stays inert until Agent Vault credentials exist; read its
+## Default bundle and retired extensions
+
+The root Pi manifest loads five extensions by default for use with BB:
+
+- `pi-pstack` (plus its skills)
+- `pi-inline-identifier`
+- `pi-local-vllm-thinking-budget`
+- `pi-todos`
+- [`pi-subscription-quota`](./packages/pi-subscription-quota)
+
+These seven extensions are retired from the default bundle: `pi-quiet`,
+`pi-answer`, `pi-btw`, `pi-files`, `pi-session-breakdown`, `pi-tokps`,
+and `pi-jev-pruner`. Retirement means they remain in this repository with their
+own package manifests, but the root install does not load them. No source or
+stored user data is deleted. `pi-sidekick` also remains opt-in.
+
+Each package can still be installed alone. `pi-jev-pruner` stays inert until
+Agent Vault credentials exist; read its
 [README](./packages/pi-jev-pruner/README.md) before enabling it.
 
 ## Install
 
-Install everything from the repository:
+Install the default bundle from the repository:
 
 ```bash
 pi install git:github.com/Whamp/pi-extensions
@@ -37,6 +52,15 @@ pi install npm:@whamp/pi-pstack
 # Or install the inline identifier package alone:
 pi install npm:@whamp/pi-inline-identifier
 ```
+
+Install an opt-in package from a checkout:
+
+```bash
+pi install ./packages/pi-answer
+```
+
+Package filters on the root install cannot enable retired extensions: filters
+only narrow the root manifest. Use the child package instead.
 
 Run a package from a checkout without installing it:
 

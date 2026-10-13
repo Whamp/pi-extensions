@@ -2,23 +2,26 @@
 
 ## Layout
 
-This monorepo keeps ten independent Pi packages under `packages/`:
+This monorepo keeps independent Pi packages under `packages/`:
 
 ```text
 packages/
   pi-answer/
   pi-btw/
   pi-files/
+  pi-inline-identifier/
   pi-jev-pruner/
   pi-local-vllm-thinking-budget/
   pi-pstack/
   pi-quiet/
   pi-session-breakdown/
+  pi-sidekick/
+  pi-subscription-quota/
   pi-todos/
   pi-tokps/
 ```
 
-Each package declares its Pi entry point in `package.json`. The root manifest loads all ten; each package also works on its own.
+Each package declares its Pi entry point in `package.json`. The root manifest loads only the five extensions in the [default bundle](../README.md#default-bundle-and-retired-extensions). Retired and opt-in packages keep their child manifests and work on their own. Do not add them back to the root manifest without an explicit decision to change the defaults.
 
 ## Local development
 

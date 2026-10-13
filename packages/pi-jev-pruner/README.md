@@ -17,8 +17,11 @@ pi runs a bash command → complete output scored by Jev → model receives kept
 
 ## Install
 
+This extension is retired from the repository's default bundle. It remains
+available as an opt-in child package. From a checkout of this repository:
+
 ```bash
-pi install git:github.com/Whamp/pi-extensions
+pi install ./packages/pi-jev-pruner
 ```
 
 Or load just this package for one session:

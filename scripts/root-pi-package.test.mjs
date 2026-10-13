@@ -11,17 +11,10 @@ const packageJson = JSON.parse(
 
 const expectedPiManifest = {
   extensions: [
-    "./packages/pi-quiet/extensions/quiet/index.ts",
     "./packages/pi-pstack/extensions/pstack/index.ts",
     "./packages/pi-inline-identifier/extensions/inline-identifier/index.ts",
-    "./packages/pi-answer/extensions/answer/index.ts",
-    "./packages/pi-btw/extensions/btw/index.ts",
-    "./packages/pi-files/extensions/files/index.ts",
     "./packages/pi-local-vllm-thinking-budget/extensions/local-vllm-thinking-budget/index.ts",
-    "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
     "./packages/pi-todos/extensions/todos/index.ts",
-    "./packages/pi-tokps/extensions/tokps/index.ts",
-    "./packages/pi-jev-pruner/extensions/jev-pruner/index.ts",
     "./packages/pi-subscription-quota/extensions/subscription-quota/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
@@ -106,8 +99,36 @@ describe("root Pi package", () => {
     }
   });
 
-  it("advertises every package extension and all pi-pstack resources", () => {
+  it("advertises only the five default extensions and all pi-pstack resources", () => {
     assert.deepEqual(packageJson.pi, expectedPiManifest);
+  });
+
+  it("keeps retired extensions available through their child packages", () => {
+    const retiredExtensionPaths = [
+      "./packages/pi-quiet/extensions/quiet/index.ts",
+      "./packages/pi-answer/extensions/answer/index.ts",
+      "./packages/pi-btw/extensions/btw/index.ts",
+      "./packages/pi-files/extensions/files/index.ts",
+      "./packages/pi-session-breakdown/extensions/session-breakdown/index.ts",
+      "./packages/pi-tokps/extensions/tokps/index.ts",
+      "./packages/pi-jev-pruner/extensions/jev-pruner/index.ts",
+    ];
+
+    for (const resourcePath of retiredExtensionPaths) {
+      const [, , packageName, ...entryPath] = resourcePath.split("/");
+      const manifest = JSON.parse(
+        readFileSync(
+          join(repositoryRoot, "packages", packageName, "package.json"),
+          "utf8",
+        ),
+      );
+      assert.ok(manifest.pi.extensions.includes(`./${entryPath.join("/")}`));
+      assert.equal(
+        existsSync(join(repositoryRoot, resourcePath)),
+        true,
+        `missing retired extension: ${resourcePath}`,
+      );
+    }
   });
 
   it("points every advertised resource at an existing path", () => {
