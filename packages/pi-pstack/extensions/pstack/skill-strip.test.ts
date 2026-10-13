@@ -1,4 +1,7 @@
 import assert from "node:assert/strict";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { stripSkillsByLocationPrefix } from "./skill-strip.ts";
 
@@ -16,6 +19,34 @@ function fixture(entries: string): string {
 }
 
 describe("stripSkillsByLocationPrefix", () => {
+	for (const linkKind of ["file", "directory"] as const) {
+		it(`removes a package skill advertised through a shared ${linkKind} symlink`, (context) => {
+			const root = mkdtempSync(join(tmpdir(), "pstack-skill-strip-"));
+			context.after(() => rmSync(root, { recursive: true, force: true }));
+			const packageSkills = join(root, "package", "skills");
+			const reviewDirectory = join(packageSkills, "review & design");
+			const sharedDirectory = join(root, "shared");
+			mkdirSync(reviewDirectory, { recursive: true });
+			mkdirSync(sharedDirectory);
+			const reviewFile = join(reviewDirectory, "SKILL.md");
+			writeFileSync(reviewFile, "Review code.");
+			const sharedLocation = join(sharedDirectory, "review", "SKILL.md");
+			if (linkKind === "directory") {
+				symlinkSync(reviewDirectory, join(sharedDirectory, "review"), "dir");
+			} else {
+				mkdirSync(join(sharedDirectory, "review"));
+				symlinkSync(reviewFile, sharedLocation, "file");
+			}
+			const unrelatedFile = join(sharedDirectory, "unrelated.md");
+			writeFileSync(unrelatedFile, "Custom skill.");
+			const unrelated = skill("unrelated", "Custom.", unrelatedFile);
+			const prompt = fixture(skill("review", "Review.", sharedLocation) + unrelated);
+			const result = stripSkillsByLocationPrefix(prompt, packageSkills);
+			assert.equal(result.removed, 1);
+			assert.equal(result.prompt, fixture(unrelated));
+		});
+	}
+
 	it("returns input unchanged with removed 0 when no skills block exists", () => {
 		const prompt = "\n\nYou are a coding agent.\n\n<other_section>hello</other_section>";
 		const result = stripSkillsByLocationPrefix(prompt, PSTACK_PREFIX);
