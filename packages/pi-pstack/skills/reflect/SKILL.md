@@ -26,11 +26,9 @@ Each file is JSONL. Confirm a candidate by finding the conversation's opening us
 
 ### 2. Spawn three reviewers in parallel
 
-The parent resolves any ticket, chat, document, observability, error-tracker, or analytics references from the transcript before launch. Put the transcript path and fetched evidence in one bounded digest. Children do not inherit the parent's MCP or extension tools.
+Launch three fresh `pi_worker` reviewers without waiting between launches, one per lens using the table below. Allow read/search and the specific research/MCP tools needed to check transcript references, but not file-writing tools. Pi tool allowlists do not inherently strip MCP access. Record their BB thread IDs.
 
-Launch all three reviewers and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: 4, workflowScript } })` call. In `workflowScript`, await the three reviewers with `runs.all([{ key: "judgment-review", ... }, { key: "tooling-review", ... }, { key: "divergent-review", ... }])`, then return `runs.run("synthesize-reviews", { ... })` with their outputs.
-
-Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.
+Each BB Pi worker names a role in `~/.pi/agent/pstack/models.json`. Resolve it through `model-routing`. Aliases copy the resolved parent Pi model. Inspect `bb provider models pi` on the execution host when a selector fails; use only permitted recovery routes. Never treat `inherit-parent` or `auto` as broken selectors.
 
 | Lens | `model` | Prompt template |
 |---|---|---|
@@ -38,11 +36,11 @@ Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's sel
 | Tooling | `reflect tooling reviewer` (default inherit-parent) | `references/tooling-reviewer.md` |
 | Divergent | `reflect divergent reviewer` (default inherit-parent) | `references/divergent-reviewer.md` |
 
-Each reviewer item uses `agent: "reviewer"`, its configured model, and a task that says to inspect only. Pass each template verbatim, substituting the transcript path or the bounded digest where marked. Reviewers return findings through their workflow results.
+Pass each template verbatim, substituting this run's transcript path or bounded digest where marked. Each reviewer returns findings in its BB conversation. Retrieve full reports after completion; parent notices may be abbreviated.
 
 ### 3. Synthesize
 
-The workflow's `synthesize-reviews` child uses `agent: "reviewer"`. It runs using `reflect synthesizer` (default inherit-parent). Use `references/synthesizer.md` verbatim, with each reviewer's full output inlined where marked. It returns a structured Accepted / Rejected / Backlog list. After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools.
+After all reviewers finish, launch a fresh `pi_worker` using `reflect synthesizer`. Allow read/search and the research tools needed to spot-check citations. Use `references/synthesizer.md` verbatim with each full review inlined. It returns Accepted / Rejected / Backlog lists. The coordinator checks the synthesis against the evidence.
 
 ### 4. Structural enforcement check
 

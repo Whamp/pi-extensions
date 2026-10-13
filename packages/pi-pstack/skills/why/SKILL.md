@@ -10,7 +10,7 @@ Investigate the motivation and intent behind code.
 
 Companion to the `how` skill. `how` answers what the code does and how it works. `why` answers what forces led to its shape.
 
-Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.
+Each BB Pi worker names a role in `~/.pi/agent/pstack/models.json`. Resolve it through `model-routing`. Aliases copy the resolved parent Pi model. Inspect `bb provider models pi` on the execution host when a selector fails; use only permitted recovery routes. Never treat `inherit-parent` or `auto` as broken selectors.
 
 ## Operating Posture
 
@@ -73,26 +73,23 @@ Before spawning investigators, the parent lists its available MCP and extension 
 
 Source control is always available through git and `gh`. For the other six, classify using the MCP name, server instructions, tool names, and resource descriptors. If an MCP could fit more than one category, choose the one matching its primary evidence. Record ambiguous cases in the coverage map.
 
-Aim for a complete **coverage map**, not a minimal one. Document the null, don't skip the search. The parent queries each available MCP and builds one bounded evidence packet per category before launching children. A child does not inherit ambient MCP or extension tools. Use a custom agent for a child-side lookup only when that agent explicitly lists the tool and loads its provider through `extensions` or `subagentOnlyExtensions`.
+Aim for a complete **coverage map**, not a minimal one. Document null results. Give investigators read/search tools and the specific MCP or research tools for their evidence category. Native Pi tool selection does not strip all MCP access.
 
-Launch all matching investigators and the dependent synthesizer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await the investigators with `runs.all([{ key: "investigate-<category>", agent: "reviewer", task, model }])`, then return `runs.run("synthesize-why", { agent: "reviewer", task, model })` with their outputs. `N` is the number of evidence categories launched. Don't ask one agent to cover multiple categories.
+Launch a fresh `pi_worker` per matching evidence category without waiting between launches. Use `why investigators`. Do not ask one investigator to cover multiple categories. Once all finish, retrieve their full reports and launch the synthesizer in Step 4.
 
-Each investigator uses:
-- agent: "reviewer"
-- `model`: `why investigators` (default inherit-parent)
-- `task`: instruct the investigator to inspect only
+Each investigator uses `why investigators`, an explicit read/search and category-research tool allowlist, and an instruction not to modify files. Exclude edit/write and unrestricted bash unless the assignment requires shell execution.
 
 Each investigator gets:
 1. The base prompt from `references/investigator-prompt.md`
-2. The category playbook `references/sources/<source>.md` as an analysis rubric for the parent's evidence packet, not as child tool instructions
-3. The parent's evidence packet for that category, including null results and gaps
+2. The category playbook `references/sources/<source>.md` and the matching research/MCP tools for direct source lookup
+3. Any evidence already collected for that category, including null results and gaps
 4. The cross-cutting `references/sources/incident-postmortem.md` **if the target code looks defensive** (null checks, retry logic, timeout handling, rate limiting, feature flags, egress guards, OOM handlers)
 5. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
 6. The user's original question
 
 ### Investigator roster. One per available evidence category
 
-Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns exactly one evidence packet.
+Spawn one investigator per category with source-control evidence or a matching parent MCP. Each owns one source category and performs its own permitted source lookups.
 
 Each entry names the category and the kind of "why" it uniquely surfaces. Use it to know what to expect back, how to name a gap when a category returns empty, and (only in the rare provably-irrelevant case) to justify a skip.
 
@@ -121,18 +118,7 @@ If your scope assessment suggests a single-commit trivial target where the PR de
 
 ## Step 4. Synthesize
 
-The same workflow launches `synthesize-why` after every investigator settles. It uses:
-- agent: "reviewer"
-- `model`: `why synthesizer` (default inherit-parent)
-
-The synthesizer gets:
-1. The investigator findings, including any null results and any categories skipped with justification
-2. The code anchor from Step 2 (file paths, symbols, commit hashes, PR numbers, ticket IDs)
-3. The user's original question
-4. The epistemics framework from `references/epistemics.md`
-5. The synthesizer prompt template from `references/synthesizer-prompt.md`
-
-After the workflow completes, the parent spot-verifies citations with its own MCP and extension tools before presenting the result.
+After all investigators finish, launch a fresh `pi_worker` using `why synthesizer`. Give it full findings, including nulls and skipped categories, code anchors, the original question, the epistemics framework, and `references/synthesizer-prompt.md`. Allow read/search and the research tools needed to spot-check citations.
 
 ## Step 5. Present
 

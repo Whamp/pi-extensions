@@ -47,7 +47,7 @@ function runPostinstall(cwd, home, extraEnv = {}) {
 
 function assertSharedSkills(sharedRoot) {
 	const names = readdirSync(skillsRoot);
-	assert.equal(names.length, 48);
+	assert.equal(names.length, 52);
 	assert.deepEqual(readdirSync(sharedRoot).sort(), names.sort());
 	for (const name of names) {
 		assert.ok(lstatSync(join(sharedRoot, name)).isSymbolicLink());
@@ -57,10 +57,20 @@ function assertSharedSkills(sharedRoot) {
 		readFileSync(join(sharedRoot, "bro", "SKILL.md"), "utf8"),
 		/disable-model-invocation: true/,
 	);
-	assert.equal(
-		readFileSync(join(sharedRoot, "poteto-mode", "playbooks", "bug-fix.md"), "utf8"),
-		readFileSync(join(skillsRoot, "poteto-mode", "playbooks", "bug-fix.md"), "utf8"),
-	);
+	for (const rel of [
+		"poteto-mode/playbooks/bug-fix.md",
+		"poteto-mode/references/bb-surface.md",
+		"poteto-help/SKILL.md",
+		"benchmark-checklist/SKILL.md",
+		"correct/SKILL.md",
+		"principle-explain-the-number/SKILL.md",
+	]) {
+		assert.equal(
+			readFileSync(join(sharedRoot, rel), "utf8"),
+			readFileSync(join(skillsRoot, rel), "utf8"),
+			rel,
+		);
+	}
 }
 
 describe("Pstack shared skill installation", () => {
@@ -129,6 +139,24 @@ describe("Pstack shared skill installation", () => {
 		});
 		assert.equal(result.status, 0, result.stderr);
 		const [archive] = JSON.parse(result.stdout);
-		assert.ok(archive.files.some((file) => file.path === "scripts/install-shared-skills.mjs"));
+		const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8"));
+		const changelog = readFileSync(join(packageRoot, "CHANGELOG.md"), "utf8");
+		assert.match(changelog, /^## 0\.10\.1$/m, "preserve the released TypeBox peer fix");
+		assert.equal(manifest.version, changelog.match(/^## (\d+\.\d+\.\d+)$/m)?.[1]);
+		assert.equal(archive.version, manifest.version);
+		assert.equal(manifest.scripts.postinstall, "node scripts/install-shared-skills.mjs");
+		assert.equal(manifest.peerDependencies.typebox, "*");
+		assert.equal(manifest.dependencies?.typebox, undefined);
+		for (const path of [
+			"scripts/install-shared-skills.mjs",
+			"skills/poteto-mode/references/bb-surface.md",
+			"skills/poteto-help/SKILL.md",
+			"skills/how/agents/openai.yaml",
+		]) {
+			assert.ok(
+				archive.files.some((file) => file.path === path),
+				`missing ${path}`,
+			);
+		}
 	});
 });

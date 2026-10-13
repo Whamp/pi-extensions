@@ -8,7 +8,7 @@ disable-model-invocation: true
 
 Explore the codebase to answer "how does X work?" questions. Produce architectural explanations at the level of a senior engineer onboarding onto a subsystem, enough to build a working mental model, not so much that it reads like annotated source code.
 
-Each child names a role in `~/.pi/agent/pstack/models.json`. Use that role's selector. Omit `model` when the value is `inherit-parent` or `auto`. If an explicit selector is unavailable, inspect `subagent({ action: "models", input: {} })`, pick the closest available model (prefer the highest-reasoning tier of the same family), and relaunch. Never treat `inherit-parent` or `auto` as broken selectors.
+Each BB Pi worker names a role in `~/.pi/agent/pstack/models.json`. Resolve it through `model-routing`. Aliases copy the resolved parent Pi model. Inspect `bb provider models pi` on the execution host when a selector fails; use only permitted recovery routes. Never treat `inherit-parent` or `auto` as broken selectors.
 
 ## Step 1. Assess Complexity
 
@@ -21,30 +21,15 @@ When in doubt, take the simple path.
 
 ## Step 2a. Explore (complex questions only)
 
-Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Launch the explorers and dependent explainer with one `subagent({ action: "execute", input: { async: true, maxSubagentSpawnsPerRun: N + 1, workflowScript } })` call. In `workflowScript`, await `runs.all([{ key: "explore-<angle>", agent: "reviewer", task, model }])`, then return `runs.run("explain", { agent: "reviewer", task, model })` with the explorer outputs.
-
-Each explorer uses:
-- agent: "reviewer"
-- `model`: `how explorers` (default inherit-parent)
-- `task`: the prompt in `references/explorer-prompt.md` with its angle filled in and an instruction to inspect only
-
-Then go to Step 3.
+Decompose the question into 2 to 4 distinct exploration angles. Launch a fresh `pi_worker` per angle using `how explorers` and tools `read`, `grep`, `find`, and `ls`. Each gets `references/explorer-prompt.md` with its angle filled in. Launch all ready explorers without waiting for one to finish. Then go to Step 3.
 
 ## Step 2b. Direct Explain (simple questions)
 
-Launch one standalone child with `subagent({ action: "execute", input: { agent: "reviewer", task, model, async: false } })` using:
-- agent: "reviewer"
-- `model`: `how explainer` (default inherit-parent)
-- `task`: `references/explainer-prompt.md` without the explorer-findings section and with an instruction to inspect only
-
-Go to Step 4.
+Launch one fresh `pi_worker` using `how explainer` and tools `read`, `grep`, `find`, and `ls`. Build its task from `references/explainer-prompt.md` without the explorer findings. Wait for its BB completion report, then go to Step 4.
 
 ## Step 3. Synthesize (complex questions only)
 
-The same workflow launches `explain` after every explorer settles using:
-- agent: "reviewer"
-- `model`: `how synthesizer` (default inherit-parent)
-- `task`: `references/explainer-prompt.md` with every explorer result filled in and an instruction to inspect only
+Once all explorers finish, retrieve each full report by BB thread ID. Launch a fresh `pi_worker` using `how synthesizer` and tools `read`, `grep`, `find`, and `ls`. Give it `references/explainer-prompt.md` with every explorer finding filled in.
 
 ## Step 4. Present
 

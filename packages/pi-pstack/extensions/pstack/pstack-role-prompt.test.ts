@@ -11,6 +11,14 @@ describe("systemPromptInjection", () => {
 	});
 
 	it("adds no prompt text when Poteto Mode is off", () => {
-		assert.equal(systemPromptInjection(false), "");
+		assert.equal(systemPromptInjection(false, "/package/bb-surface.md"), "");
+	});
+
+	it("points BB sessions to the shipped worker reference without requiring a project", () => {
+		const prompt = systemPromptInjection(true, "/package/bb-surface.md");
+		assert.ok(prompt.includes("pi_worker"));
+		assert.ok(prompt.includes("/package/bb-surface.md"));
+		assert.ok(!prompt.includes("BB_PROJECT_ID"));
+		assert.ok(!prompt.includes("authorization"));
 	});
 });

@@ -25,9 +25,6 @@ const expectedPiManifest = {
     "./packages/pi-subscription-quota/extensions/subscription-quota/index.ts",
   ],
   skills: ["./packages/pi-pstack/skills"],
-  subagents: {
-    agents: ["./packages/pi-pstack/agents"],
-  },
 };
 
 // Pi provides these itself, so packages list them instead of installing them.
@@ -78,6 +75,13 @@ describe("package runtime dependencies", () => {
 });
 
 describe("root Pi package", () => {
+  it("keeps the shared-skill lifecycle hook on the Git install", () => {
+    assert.equal(
+      packageJson.scripts.postinstall,
+      "node packages/pi-pstack/scripts/install-shared-skills.mjs",
+    );
+  });
+
   it("uses distinct, descriptive extension labels in pi config", () => {
     const labels = packageJson.pi.extensions.map(
       (path) => `${basename(dirname(path))}/${basename(path)}`,
@@ -110,7 +114,6 @@ describe("root Pi package", () => {
     const advertisedPaths = [
       ...packageJson.pi.extensions,
       ...packageJson.pi.skills,
-      ...packageJson.pi.subagents.agents,
     ];
 
     for (const resourcePath of advertisedPaths) {

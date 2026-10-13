@@ -45,11 +45,6 @@
     ],
     "skills": [
       "./packages/pi-pstack/skills"
-    ],
-    "subagents": {
-      "agents": [
-        "./packages/pi-pstack/agents"
-      ]
-    }
+    ]
   }
 }

@@ -27,7 +27,7 @@ For Audit, if the spec source is missing and the user has not said that no spec 
 
 Use the shared ordered model lineup from the caller's `model-routing`, spending, and family policy. Each selected model gets one fresh Standards reviewer and one fresh Spec reviewer. These are separate children. Do not combine the axes or choose separate model lineups for them.
 
-Use the read-only `reviewer` agent with fresh context through `pi-subagents`. Never substitute a write-capable worker for a reviewer. Follow the [Audit procedure](references/code-review-audit.md). It blocks missing required sources, model families, axes, or reviewer results. Never turn a failed, missing, or partial check into a pass.
+Use fresh, nested BB Pi reviewer threads through `pi_worker`, with tools `read`, `grep`, `find`, and `ls`. Never substitute an unrestricted or write-capable worker for a reviewer. Read `../poteto-mode/references/bb-surface.md` for execution and recovery. Follow the [Audit procedure](references/code-review-audit.md). It blocks missing required sources, model families, axes, or reviewer results. Never turn a failed, missing, or partial check into a pass.
 
 ## Run Challenge
 
