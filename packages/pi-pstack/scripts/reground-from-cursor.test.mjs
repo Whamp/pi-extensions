@@ -411,6 +411,7 @@ test("Pi-owned PR and BB overlays survive hostile upstream replacements and miss
 	const overlays = [
 		"skills/poteto-mode/references/bb-surface.md",
 		"skills/poteto-help/SKILL.md",
+		"skills/poteto-help/references/recipes.md",
 		"skills/poteto-mode/references/branch-workflow.md",
 		"skills/poteto-mode/playbooks/orchestrate.md",
 		"skills/poteto-mode/playbooks/autopilot-full.md",
@@ -505,12 +506,115 @@ test("BB Orchestrate preserves the rolling window and evidence handoff without a
 		"utf8",
 	);
 	assert.match(body, /Count workers and verifiers together/);
-	assert.match(body, /independent verifier before refilling/);
+	assert.match(body, /requires independent verification.*independent verifier before refilling/);
+	assert.match(body, /For cheap units.*check.*receipts.*record.*refill without.*verifier/);
 	assert.match(body, /failed worker.*gets no verifier/);
 	assert.match(body, /Dependent stages launch only after prerequisite reports/);
 	assert.match(body, /coordinator is the sole program-store writer/);
 	assert.match(body, /thread IDs against|BB thread ID against/);
-	assert.doesNotMatch(body, /subagent\(|workflowScript|Promise\.race|runs\.all/);
+	assert.doesNotMatch(
+		body,
+		/subagent\(|workflowScript|Promise\.race|runs\.all|async runs|async default|per Stack safety/,
+	);
+	assert.match(body, /per PR safety/);
+	assert.match(body, /inspect retained BB child threads and their full reports/);
+});
+
+test("Orchestrate returns child evidence for coordinator-owned exact-head ledger writes", () => {
+	const body = readFileSync(
+		join(packageRoot, "skills/poteto-mode/playbooks/orchestrate.md"),
+		"utf8",
+	);
+	assert.match(
+		body,
+		/Verifiers return evidence and a proposed verdict keyed by PR number and exact head SHA/,
+	);
+	assert.match(body, /coordinator records.*during drain/);
+	assert.match(body, /Only the coordinator writes ledger rows/);
+	assert.doesNotMatch(
+		body,
+		/(?:a verifier|workers?|sub-coordinators?) (?:writes?|records?|updates?) (?:its |their |the )?(?:ledger|shared store|program store)/i,
+	);
+});
+
+test("Pi help recipes select bounded live recurrence or an existing durable scheduler", () => {
+	const body = readFileSync(join(packageRoot, "skills/poteto-help/references/recipes.md"), "utf8");
+	assert.match(body, /bounded `until` recurrence.*live Pi session/);
+	assert.match(body, /positive done predicate/);
+	assert.match(body, /timeout/);
+	assert.match(body, /stop or cancel/);
+	assert.match(body, /existing durable scheduler/);
+	assert.match(body, /capability blocker.*do not invent/i);
+	assert.doesNotMatch(body, /\/loop\b/);
+});
+
+test("live Interrogate transforms preserve the review role label and explicit read tools", () => {
+	const rel = "skills/interrogate/SKILL.md";
+	for (const root of [
+		pinnedCallerGuidanceRoot,
+		resolve(packageRoot, "fixtures/cursor-pstack-12d587d"),
+	]) {
+		const body = applyBodyTransforms(readFileSync(join(root, rel), "utf8"), rel);
+		assert.match(body, /role: "interrogate reviewers"/);
+		assert.match(body, /`tools`: `\["read", "grep", "find", "ls"\]`/);
+		assert.doesNotMatch(body, /role: "worker"|agent: "(?:worker|reviewer)"/);
+		assert.equal(applyBodyTransforms(body, rel), body);
+	}
+});
+
+test("unmatched Cursor worker fields stay visible to the caller audit", () => {
+	const rel = "skills/how/SKILL.md";
+	const source = [
+		"---",
+		"name: how",
+		"description: Explain a subsystem with independent investigators.",
+		"disable-model-invocation: true",
+		"---",
+		"# How",
+		"Launch an investigator for each request path, then combine the findings.",
+		"Set `run_in_background: true` for each investigator.",
+		'Use `environment: "cloud"` for repository work.',
+		'Use `environment: "local"` when the service runs only on this machine.',
+		"Set `cloud_base_branch` to the request's branch before exploration.",
+	].join("\n");
+	const from = makeTree("unmatched-cursor-worker-fields", { [rel]: source });
+	const to = makeTree("unmatched-pi-worker-fields", PI_SYNCED_FILES);
+	apply(plan({ from, to, dryRun: false }));
+	const body = readFileSync(join(to, rel), "utf8");
+	assert.doesNotMatch(body, /\basync\b|\bbaseRef\b|`cwd`/);
+	for (const field of [
+		"run_in_background",
+		'environment: "cloud"',
+		'environment: "local"',
+		"cloud_base_branch",
+	]) {
+		assert.ok(body.includes(field), field);
+	}
+	assert.throws(
+		() => assertNoLegacyPiCallerGuidance(to),
+		(error) => {
+			assert.ok(error instanceof Error);
+			for (const id of [
+				"cursor-run-in-background-field",
+				"cursor-environment-field",
+				"cursor-cloud-base-branch-field",
+			]) {
+				assert.ok(error.message.includes(id), id);
+			}
+			return true;
+		},
+	);
+});
+
+test("Arena judge retains configured pool lookup and resolved-parent fallback", () => {
+	const rel = "skills/arena/SKILL.md";
+	const body = applyBodyTransforms(readFileSync(join(pinnedCallerGuidanceRoot, rel), "utf8"), rel);
+	const judge = body.slice(body.indexOf("## Phase C:"), body.indexOf("## Phase D:"));
+	assert.match(
+		judge,
+		/`arena judge pool` in `~\/\.pi\/agent\/pstack\/models\.json` when configured/,
+	);
+	assert.match(judge, /Otherwise inherit the resolved parent Pi model/);
 });
 
 test("renderWrite matches Poteto defaults and removes retired reply guidance", () => {
@@ -612,15 +716,6 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		forbiddenCursor: ["architect/interrogate fan-out"],
 	},
 	{
-		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		cursor:
-			"A subagent that opens a PR runs `interrogate`, `/deslop`, and `/no-comments`, and posts the URL.",
-		requiredPi: [
-			"A subagent that opens a PR first reads `../../code-review/SKILL.md` relative to this playbook's directory. It runs that coordinator in Challenge mode, `/skill:deslop`, and `/skill:no-comments`, and posts the URL.",
-		],
-		forbiddenCursor: ["runs `interrogate`"],
-	},
-	{
 		rel: "skills/architect/SKILL.md",
 		cursor:
 			"For adversarial pressure on the design before implementing, run the `interrogate` skill on the synthesized sketch.",
@@ -628,14 +723,6 @@ const CALLER_GUIDANCE_CONCEPTS = [
 			"For adversarial pressure on the design before implementing, read `../code-review/SKILL.md` relative to this skill directory. Use Challenge on the synthesized sketch.",
 		],
 		forbiddenCursor: ["`interrogate` skill"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		cursor: "Which PRs get `pstack/skills/how/SKILL.md` and `pstack/skills/interrogate/SKILL.md`.",
-		requiredPi: [
-			"Which PRs get `pstack/skills/how/SKILL.md` and `../../code-review/SKILL.md` in Challenge mode. Resolve the coordinator path relative to this playbook's directory.",
-		],
-		forbiddenCursor: ["pstack/skills/interrogate/SKILL.md"],
 	},
 	{
 		rel: "skills/no-comments/SKILL.md",
@@ -846,70 +933,6 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		forbiddenCursor: ["subagent_type"],
 	},
 	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		cursor: "In a local session, a real terminal `/loop`.",
-		requiredPi: ["In a local session, a recurring wake."],
-		forbiddenCursor: ["terminal a recurring wake"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		cursor: "Drive through `control-ui` or `control-cli` from `cursor-team-kit`.",
-		requiredPi: ["Drive through the project's verification skill or harness."],
-		forbiddenCursor: ["harness from the project's verification skill"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		cursor: "Run `/deslop` from `cursor-team-kit` over the diff before commit.",
-		requiredPi: ["Run `/skill:deslop` over the diff before commit."],
-		forbiddenCursor: ["from the project's verification skill"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/multi-phase-plan.md",
-		cursor:
-			'3. Explore in subagents with `subagent_type: "poteto-agent"` and an explicit model per the Subagents section (the **guard-the-context-window** principle skill). Each returns file pointers, conventions, test commands, and entry points. No inlined dumps.',
-		requiredPi: ["workflowScript", "maxSubagentSpawnsPerRun: N", "return await runs.all(["],
-		forbiddenCursor: ["subagent_type"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor: "Agents are spawned, resumed, and drained only through the Task tool.",
-		requiredPi: ['action: "execute"', "workflowScript"],
-		forbiddenCursor: ["Task tool"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor:
-			"spawns its own workers and verifiers (nesting works to depth 3, and a nested spawn has the full Task schema including `environment`).",
-		requiredPi: ["subagentOnlyExtensions"],
-		forbiddenCursor: ["Task schema"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor:
-			"- Never resume an agent to check on it. A resume restarts an idle agent. Probe read-only: the ledger, `units.tsv`, `gh`, pushed branches, the cloud agent's status in the Cursor dashboard. Transcript mtime is not liveness.",
-		requiredPi: ['action: "status"'],
-		forbiddenCursor: ["Cursor dashboard"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor:
-			"- After a Cursor restart: local agents are dead, cloud work is not. Re-read the standing orders and `units.tsv`, recompute the frontier, reattach cloud work by PR and branch rather than agent id, respawn one sub-coordinator per track from its stored brief plus current state, drain, resume. The dead session's store lock clears itself on the next write. `orch` replaces a lock whose holder pid is gone.",
-		requiredPi: ["After a Pi restart"],
-		forbiddenCursor: ["Cursor restart"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor:
-			"4. **Scale.** Spawn a rolling window of workers up to the in-flight cap, refilling as children finish. Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.",
-		requiredPi: [
-			"maxSubagentSpawnsPerRun: N + V",
-			"globalConcurrencyLimit: C",
-			"Promise.race",
-			"matching different-family verifier",
-		],
-		forbiddenCursor: ['return `runs.run("<unit-id>-verify"'],
-	},
-	{
 		rel: "skills/how/SKILL.md",
 		cursor:
 			"Once all explorers have returned, spawn one Task subagent to synthesize their findings into one explanation:\n\n- `subagent_type`: `generalPurpose`\n- `model`: your configured how-explainer model (default `claude-fable-5-1-thinking-max`)\n- `readonly`: `true`\n\nBuild its prompt from `references/explainer-prompt.md` with every explorer's findings filled in.",
@@ -1005,38 +1028,6 @@ const CALLER_GUIDANCE_CONCEPTS = [
 		forbiddenCursor: ["readonly"],
 	},
 	{
-		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		cursor:
-			"Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin/<branch>` between them.",
-		requiredPi: [
-			"Multiple `subagent()` launches on the same branch",
-			"`input.worktree: true`",
-			"`input.baseRef`",
-			"When reusing one existing checkout, serialize the launches",
-		],
-		forbiddenCursor: ["Task` calls"],
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		cursor:
-			'- **Worker / verifier.** Always `environment: "cloud"` unless the task needs this machine: `control-ui` or `control-cli` runtime verification (from `cursor-team-kit`). Reading local transcripts under `agent-transcripts/`. Simulators and local IDE state. Auth that exists only here. Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit\'s verifier on a different model family from its worker.\nSize the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Local spawns may reference the standing-orders file by store path. Verbatim paste is for cloud spawns and every resume.\nA sub-coordinator brief adds its track boundary and unit list, its spawn budget with the cloud default and the local exception list, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).\n- Exactly one stacker per stack may run `gt`, serialized within its stack. Record the holder in the standing orders. Restacks run in cloud. A local restack at this scale takes the laptop down.',
-		requiredPi: [
-			"`input.async: true`",
-			"Set `input.cwd`",
-			"Children with access to the store",
-			"external-provider launches",
-			"spawn budget with the async default",
-			"Run restacks as async children",
-		],
-		forbiddenCursor: [
-			"environment:",
-			"control-ui",
-			"cloud spawns",
-			"cloud default",
-			"Restacks run in cloud",
-		],
-	},
-	{
 		rel: "skills/how/SKILL.md",
 		cursor:
 			"Decompose the question into 2 to 4 exploration angles, each a distinct slice of the subsystem. Spawn all explorers in a single message:\n\n- `subagent_type`: `generalPurpose`\n- `model`: the `how explorer` line, default `grok-4.7-xhigh-fast`\n- `readonly`: `true`\n\nEach explorer gets the prompt in `references/explorer-prompt.md` with its angle filled in. Then go to Step 3.",
@@ -1118,14 +1109,16 @@ test("slash skill commands leave relative file paths intact", () => {
 });
 
 test("Pstack caller review paths bypass global skill names", () => {
-	const callers = CALLER_GUIDANCE_CONCEPTS.filter(
-		(concept) =>
-			concept.cursor.includes("interrogate") &&
-			concept.requiredPi.join("\n").includes("code-review/SKILL.md"),
-	);
-	assert.equal(callers.length, 6);
+	const callers = [
+		"skills/poteto-mode/SKILL.md",
+		"skills/poteto-mode/playbooks/feature.md",
+		"skills/poteto-mode/playbooks/bug-fix.md",
+		"skills/poteto-mode/playbooks/opening-a-pr.md",
+		"skills/architect/SKILL.md",
+		"skills/poteto-mode/playbooks/multi-phase-plan.md",
+	];
 	const coordinator = join(packageRoot, "skills/code-review/SKILL.md");
-	for (const { rel } of callers) {
+	for (const rel of callers) {
 		const caller = join(packageRoot, rel);
 		const text = readFileSync(caller, "utf8");
 		assert.equal(text.includes("/skill:code-review"), false, `${rel} must bypass name lookup`);
@@ -1139,10 +1132,9 @@ test("Pstack caller review paths bypass global skill names", () => {
 	}
 });
 
-test("adapt transforms Cursor caller guidance to catalog workflows", () => {
-	for (const concept of CALLER_GUIDANCE_CONCEPTS.filter(
-		(entry) => classify(asRelPath(entry.rel)) !== "pi-only",
-	)) {
+test("adapt transforms Cursor caller guidance to BB worker contracts", () => {
+	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
+		assert.equal(classify(asRelPath(concept.rel)), "adapt", concept.rel);
 		const transformed = applyBodyTransforms(concept.cursor, concept.rel);
 		assert.equal(
 			applyBodyTransforms(transformed, concept.rel),
@@ -1178,9 +1170,7 @@ test("caller remapping preserves unrelated prose for every concept and context",
 		},
 	];
 
-	for (const concept of CALLER_GUIDANCE_CONCEPTS.filter(
-		(entry) => classify(asRelPath(entry.rel)) !== "pi-only",
-	)) {
+	for (const concept of CALLER_GUIDANCE_CONCEPTS) {
 		for (const [contextIndex, context] of contexts.entries()) {
 			const input = `${context.before}\n\n${concept.cursor}\n\n${context.after}`;
 			const transformed = applyBodyTransforms(input, concept.rel);
@@ -1208,6 +1198,17 @@ test("caller remapping preserves unrelated prose for every concept and context",
 
 test("current executable Pi guidance contains no legacy caller forms", () => {
 	assert.doesNotThrow(() => assertNoLegacyPiCallerGuidance(packageRoot));
+});
+
+test("caller audit checks first-party executable help recipes without scanning third-party prose", () => {
+	const rel = "skills/poteto-help/references/recipes.md";
+	const root = makeTree("legacy-help-recipes", {
+		[rel]: "`/poteto-mode work on the task. /loop until done.`\n",
+		"skills/example/references/recipes.md": "Third-party example: /loop until done.\n",
+	});
+	assert.throws(() => assertNoLegacyPiCallerGuidance(root), /recipes\.md:1: cursor-loop-command/);
+	writeFileSync(join(root, rel), "Use a bounded until recurrence in the live session.\n");
+	assert.doesNotThrow(() => assertNoLegacyPiCallerGuidance(root));
 });
 
 test("caller audit rejects launch syntax but ignores historical and reference prose", () => {

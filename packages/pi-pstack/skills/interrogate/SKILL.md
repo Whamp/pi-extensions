@@ -41,8 +41,9 @@ Launch fresh `pi_worker` reviewers without waiting between launches. Use `interr
 | Reviewer B | inherit-parent |
 
 For each reviewer:
-- role: "worker"
+- role: "interrogate reviewers"
 - `model`: the configured `interrogate reviewers` entry, or the table default with no configured line
+- `tools`: `["read", "grep", "find", "ls"]`, plus specifically required read-only research tools
 - `task`: instruct the reviewer to inspect only and not modify files
 
 If an explicit model selector is unavailable, inspect `bb provider models pi` on the execution host, use only the recovery route permitted by `model-routing`. Explicit selectors do not fall back. Open a separate PR to update a stale configured value or default table. Do not block the review on a stale selector. If the configured value is `inherit-parent` or `auto`, omit `model`; never treat those aliases as broken selectors or enter this fallback for them.

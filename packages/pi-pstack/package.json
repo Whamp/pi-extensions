@@ -1,7 +1,7 @@
 {
 	"name": "@whamp/pi-pstack",
 	"version": "0.10.1",
-	"description": "pstack for Pi: rigorous agent workflows you can parallelize with confidence - poteto-mode playbooks, engineering principles, multi-model review panels, and subagents.",
+	"description": "pstack for Pi: rigorous agent workflows you can parallelize with confidence - poteto-mode playbooks, engineering principles, multi-model review panels, and BB Pi workers.",
 	"type": "module",
 	"license": "MIT",
 	"author": "Will Hampson <whamp@ggl.slmail.me> (https://github.com/Whamp)",
@@ -24,7 +24,8 @@
 		"workflow",
 		"principles",
 		"poteto-mode",
-		"subagents",
+		"bb",
+		"pi-workers",
 		"unslop"
 	],
 	"files": [

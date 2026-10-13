@@ -33,14 +33,26 @@ function withAgentDir<T>(
 	const jsonPath = join(dir, "pstack", "models.json");
 	const markdownPath = join(dir, "pstack-models.md");
 	return fn({ dir, jsonPath, markdownPath }).finally(() => {
-		if (previous === undefined) delete process.env.PI_CODING_AGENT_DIR;
-		else process.env.PI_CODING_AGENT_DIR = previous;
-		if (previousThread === undefined) delete process.env.BB_THREAD_ID;
-		else process.env.BB_THREAD_ID = previousThread;
-		if (previousProject === undefined) delete process.env.BB_PROJECT_ID;
-		else process.env.BB_PROJECT_ID = previousProject;
-		if (previousEnvironment === undefined) delete process.env.BB_ENVIRONMENT_ID;
-		else process.env.BB_ENVIRONMENT_ID = previousEnvironment;
+		if (previous === undefined) {
+			delete process.env.PI_CODING_AGENT_DIR;
+		} else {
+			process.env.PI_CODING_AGENT_DIR = previous;
+		}
+		if (previousThread === undefined) {
+			delete process.env.BB_THREAD_ID;
+		} else {
+			process.env.BB_THREAD_ID = previousThread;
+		}
+		if (previousProject === undefined) {
+			delete process.env.BB_PROJECT_ID;
+		} else {
+			process.env.BB_PROJECT_ID = previousProject;
+		}
+		if (previousEnvironment === undefined) {
+			delete process.env.BB_ENVIRONMENT_ID;
+		} else {
+			process.env.BB_ENVIRONMENT_ID = previousEnvironment;
+		}
 		rmSync(dir, { recursive: true, force: true });
 	});
 }
@@ -116,7 +128,9 @@ function makeCtx(options?: {
 				selectTitles.push(title);
 				selectCount += 1;
 				options?.onSelect?.(selectCount);
-				if (answers.length === 0) return undefined;
+				if (answers.length === 0) {
+					return undefined;
+				}
 				return answers.shift();
 			},
 			async confirm() {
@@ -256,8 +270,12 @@ describe("pstack extension v2 runtime", () => {
 	it("leaves ordinary sessions and disabled Poteto Mode free of BB worker guidance", async () => {
 		for (const scenario of ["ordinary", "project-only", "mode-off"]) {
 			await withAgentDir(async () => {
-				if (scenario === "project-only") process.env.BB_PROJECT_ID = "project-without-thread";
-				if (scenario === "mode-off") process.env.BB_THREAD_ID = "bb-thread";
+				if (scenario === "project-only") {
+					process.env.BB_PROJECT_ID = "project-without-thread";
+				}
+				if (scenario === "mode-off") {
+					process.env.BB_THREAD_ID = "bb-thread";
+				}
 				const { events } = loadExtension();
 				const { ctx } = makeCtx();
 				if (scenario !== "mode-off") {
@@ -421,7 +439,9 @@ describe("pstack extension v2 runtime", () => {
 				available: [{ provider: "xai", id: "grok-4.6" }],
 				selects: Array.from({ length: 22 }, () => "inherit-parent"),
 				onSelect(selectionNumber) {
-					if (selectionNumber !== 1) return;
+					if (selectionNumber !== 1) {
+						return;
+					}
 					writeJson(jsonPath, { version: 1, roles: { "bug-fix": SELECTOR_B } });
 				},
 			});
@@ -445,7 +465,9 @@ describe("pstack extension v2 runtime", () => {
 				available: [{ provider: "xai", id: "grok-4.6" }],
 				selects: Array.from({ length: 22 }, () => "inherit-parent"),
 				onSelect(selectionNumber) {
-					if (selectionNumber !== 1) return;
+					if (selectionNumber !== 1) {
+						return;
+					}
 					writeJson(jsonPath, {
 						version: 2,
 						roles: { "bug-fix": SELECTOR_B },

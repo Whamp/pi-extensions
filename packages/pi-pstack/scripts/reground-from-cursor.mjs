@@ -229,26 +229,6 @@ export const SEAMS = [
 		pi: "pi_worker schema",
 	},
 	{
-		id: "background-field",
-		cursor: /run_in_background/g,
-		pi: "async",
-	},
-	{
-		id: "cloud-base-branch",
-		cursor: /cloud_base_branch/g,
-		pi: "baseRef",
-	},
-	{
-		id: "cloud-environment",
-		cursor: /`environment: "cloud"`/g,
-		pi: "`async: true`",
-	},
-	{
-		id: "local-environment",
-		cursor: /`environment: "local"`/g,
-		pi: "`cwd` for the required local checkout",
-	},
-	{
 		id: "readonly-true",
 		cursor: /`readonly`: `true`/g,
 		pi: '`tools`: `["read", "grep", "find", "ls"]`, plus specifically required read-only research tools',
@@ -776,18 +756,6 @@ const ATOMIC_ROLE_REPLACEMENTS = [
 
 /** Rewrite upstream role prose to the atomic Pi schema, with file-specific How and Reflect splits. */
 export function applyAtomicRoleTransforms(text, rel) {
-	// Routed read-only skills launch only inspect-only children, so every emitted
-	// child uses the reviewer role (read/search tools, no bash, edit, or write).
-	if (
-		[
-			"skills/how/SKILL.md",
-			"skills/why/SKILL.md",
-			"skills/reflect/SKILL.md",
-			"skills/interrogate/SKILL.md",
-		].includes(rel)
-	) {
-		text = text.replaceAll('agent: "worker"', 'agent: "reviewer"');
-	}
 	for (const [cursor, pi] of ATOMIC_ROLE_REPLACEMENTS) {
 		text = text.replace(cursor, pi);
 	}
@@ -934,7 +902,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/(?:^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` in `~\/\.cursor\/rules\/pstack-models\.mdc` when present\. Otherwise use `(?:claude-fable-5-1-thinking-max|claude-opus-5-5-xhigh)`, `gpt-5\.6-sol-max`, `grok-4\.6-fast-xhigh`, `claude-opus-5-thinking-xhigh`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$|^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-xhigh` and `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$)/m,
 		replacement:
-			"After all Phase B candidates finish, select one model from `arena judge pool`. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.",
+			"After all Phase B candidates finish, select one model from `arena judge pool` in `~/.pi/agent/pstack/models.json` when configured. Otherwise inherit the resolved parent Pi model. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.",
 	},
 	{
 		rel: "skills/arena/SKILL.md",
@@ -1036,8 +1004,14 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
+		pattern: /^- `subagent_type`: `generalPurpose`$/m,
+		replacement: '- role: "interrogate reviewers"',
+	},
+	{
+		rel: "skills/interrogate/SKILL.md",
 		pattern: /^- `readonly`: `true`$/m,
-		replacement: "- `task`: instruct the reviewer to inspect only and not modify files",
+		replacement:
+			'- `tools`: `["read", "grep", "find", "ls"]`, plus specifically required read-only research tools\n- `task`: instruct the reviewer to inspect only and not modify files',
 	},
 	{
 		rel: "skills/interrogate/SKILL.md",
@@ -1052,169 +1026,6 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 			/^\*\*Use `subagent_type: "poteto-agent"` for any subagent you spawn inside a playbook step\*\* \(code-writing delegates, ad-hoc helpers\)\. `\/poteto-mode` and `poteto-agent` route through the same wrapper\. Routed workflow skills \(`how`, `why`, `interrogate`, `reflect`, `swarm`\) set their own `subagent_type` for diverse-model review\. Respect what the skill prescribes, don't override to `poteto-agent`\.$/m,
 		replacement:
 			"**Use a fresh BB Pi worker for any delegated playbook step.** Pass this skill path for Poteto behavior. Routed How, Why, Interrogate, Reflect, Swarm, Arena, and Architect skills retain their own models and role instructions. Use `pi_worker`, not native Pi child runtimes.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		pattern:
-			/Multiple `Task` calls on the same branch each get their own worktree, or `git fetch && git reset --hard origin\/<branch>` between them\./,
-		replacement:
-			"Parallel BB Pi workers use separately prepared Lane workspaces. Attach BB to each existing workspace; do not nest another worktree. One writer owns each checkout.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/opening-a-pr.md",
-		pattern: /`\/deslop` from `cursor-team-kit`/,
-		replacement: "`/skill:deslop`",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern: /Agents are spawned, resumed, and drained only through the Task tool\./,
-		replacement:
-			"Launch a fresh `pi_worker` for each delegated task. Record its parented BB thread ID and tool allowlist. The coordinator decides fanout and dependency order; no deterministic workflow script replaces its judgment.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/ \(nesting works to depth 3, and a nested spawn has the full Task schema including `environment`\)/,
-		replacement:
-			". Nesting works to depth 3. A custom sub-coordinator agent must list `subagent` in its tool allowlist. It must also list each extension tool and load its provider through `extensions` or `subagentOnlyExtensions`",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/- \*\*Worker \/ verifier\.\*\* Always `environment: "cloud"` unless the task needs this machine: `control-ui` or `control-cli` runtime verification \(from `cursor-team-kit`\)\. Reading local transcripts under `agent-transcripts\/`\. Simulators and local IDE state\. Auth that exists only here\. Cloud agents cannot read the local store, so their briefs inline what they need or point at repo paths\. Prefer fewer, broader workers\. One writer per worktree or branch \(principle-separate-before-serializing-shared-state\)\. Run a unit's verifier on a different model family from its worker\./,
-		replacement:
-			"- **Worker / verifier.** Set `input.async: true` for background work. Set `input.cwd` when the task needs a specific checkout, local transcript, simulator, IDE state, or machine-local auth. Briefs inline what an external provider needs or point at repository paths it can read. Prefer fewer, broader workers. One writer per worktree or branch (principle-separate-before-serializing-shared-state). Run a unit's verifier on a different model family from its worker. A role's model line selects only the model. It does not grant tools or extensions.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/^Size the brief to the unit\. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape\. A 4KB scaffold around a two-line edit costs more to write and obey than the edit\. Local spawns may reference the standing-orders file by store path\. Verbatim paste is for cloud spawns and every resume\.$/m,
-		replacement:
-			"Size the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Children with access to the store may reference the standing-orders file by path. Paste it verbatim for external-provider launches and every resume.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/^A sub-coordinator brief adds its track boundary and unit list, its spawn budget with the cloud default and the local exception list, the drain protocol, and the rollup format \(per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta\)\.$/m,
-		replacement:
-			"A sub-coordinator brief adds its track boundary and unit list, its spawn budget with the async default and blocking exceptions, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/^- Exactly one stacker per stack may run `gt`, serialized within its stack\. Record the holder in the standing orders\. Restacks run in cloud\. A local restack at this scale takes the laptop down\.$/m,
-		replacement:
-			"- Exactly one stacker per stack may run `gt`, serialized within its stack. Record the holder in the standing orders. Run restacks as async children. A blocking restack at this scale takes the laptop down.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/^- Never resume an agent to check on it\. A resume restarts an idle agent\. Probe read-only: the ledger, `units\.tsv`, `gh`, pushed branches, the cloud agent's status in the Cursor dashboard\. Transcript mtime is not liveness\.$/m,
-		replacement:
-			"- Never send a message just to check liveness. Inspect BB thread status and output, persisted units, ledger, and PR heads. Stop and replace only after confirming the old writer cannot continue.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/^- After a Cursor restart: local agents are dead, cloud work is not\. Re-read the standing orders and `units\.tsv`, recompute the frontier, reattach cloud work by PR and branch rather than agent id, respawn one sub-coordinator per track from its stored brief plus current state, drain, resume\. The dead session's store lock clears itself on the next write\. `orch` replaces a lock whose holder pid is gone\.$/m,
-		replacement:
-			"- After a Pi restart, re-read the standing orders and `units.tsv`, query retained async runs, recompute the frontier, reattach work by PR and branch rather than agent id, respawn one sub-coordinator per track from its stored brief plus current state, drain, and resume. The dead session's store lock clears itself on the next write. `orch` replaces a lock whose holder pid is gone.",
-	},
-	{
-		rel: "skills/poteto-mode/playbooks/orchestrate.md",
-		pattern:
-			/^4\. \*\*Scale\.\*\* Spawn a rolling window of workers up to the in-flight cap, refilling as children finish\. Blocking batches pay the slowest child of every batch\. Spawn track sub-coordinators only past the one-drain threshold in Roles\. Recompute ready work after each drain\. Relay upstream reports into downstream briefs\. Keep sibling communication upward only\. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one\.$/m,
-		replacement: [
-			"4. **Scale.** Spawn a rolling window of child stages up to the in-flight cap, refilling as each child settles.",
-			"",
-			'Derive positive C, N, and V from the finite unit inventory before building the request. Embed concrete C and UNITS JSON literals into workflowScript, substitute real agent, model, and task values, and omit `model` to inherit when no explicit selector is required. Set the outer request as `subagent({ action: "execute", input: { async: true, globalConcurrencyLimit: C, maxSubagentSpawnsPerRun: N + V, workflowScript } })`; C counts workers and verifiers together, globalConcurrencyLimit is the same C backstop, and N + V is cumulative admission. N is the number of worker units and V is the number of units with a verifier.',
-			"",
-			"Use this `workflowScript` body. Keep `pending` as the single source of truth for the cap. A successful worker launches its matching different-family verifier before the next worker fills that slot. A failed worker records neutral evidence and gets no verifier.",
-			"",
-			"```js",
-			"const C = 3;",
-			"const UNITS = [",
-			'  { key: "unit-a", worker: { agent: "worker", model: "worker-model", task: "Work on unit A" } },',
-			'  { key: "unit-b", worker: { agent: "worker", model: "worker-model", task: "Work on unit B" }, verifier: { agent: "reviewer", model: "reviewer-model" } },',
-			'  { key: "unit-c", worker: { agent: "worker", model: "worker-model", task: "Work on unit C" } },',
-			'  { key: "unit-d", worker: { agent: "worker", model: "worker-model", task: "Work on unit D" }, verifier: { agent: "reviewer", model: "reviewer-model" } },',
-			'  { key: "unit-e", worker: { agent: "worker", model: "worker-model", task: "Work on unit E" } },',
-			"];",
-			"let nextUnit = 0;",
-			"const rows = [];",
-			"let pending = [];",
-			"",
-			"function errorText(error) {",
-			'  return error && typeof error.message === "string" ? error.message : String(error);',
-			"}",
-			"",
-			"function observeStage(key, unit, kind, launch) {",
-			"  return launch.then(",
-			"    (result) => ({ key, unit, kind, result }),",
-			"    (error) => ({ key, unit, kind, error: errorText(error) }),",
-			"  );",
-			"}",
-			"",
-			"function startStage(key, unit, kind, params) {",
-			"  try {",
-			"    return observeStage(key, unit, kind, runs.run(key, params));",
-			"  } catch (error) {",
-			"    return Promise.resolve({ key, unit, kind, error: errorText(error) });",
-			"  }",
-			"}",
-			"",
-			"function startWorker(unit) {",
-			"  pending.push({",
-			"    key: unit.key,",
-			'    promise: startStage(unit.key, unit, "worker", unit.worker),',
-			"  });",
-			"}",
-			"",
-			"function startVerifier(unit, worker) {",
-			'  const output = typeof worker.output === "string" ? worker.output : "";',
-			'  const task = "Verify " + unit.key + " from " + runs.ref(worker) + ".\\nWorker output:\\n" + output;',
-			"  pending.push({",
-			'    key: unit.key + "-verify",',
-			'    promise: startStage(unit.key + "-verify", unit, "verifier", { ...unit.verifier, task }),',
-			"  });",
-			"}",
-			"",
-			"function evidenceRow(done) {",
-			'  if (done.error !== undefined) return { unit: done.unit.key, stage: done.kind, state: "error", error: done.error };',
-			"  const result = done.result;",
-			"  return {",
-			"    unit: done.unit.key,",
-			"    stage: done.kind,",
-			'    state: "settled",',
-			"    ok: result.ok === true,",
-			"    ...(result.stopped === true ? { stopped: true } : {}),",
-			"    ...(result.runId !== undefined ? { runId: result.runId } : {}),",
-			"    output: result.output,",
-			"  };",
-			"}",
-			"",
-			"try {",
-			"  while (nextUnit < UNITS.length || pending.length > 0) {",
-			"    while (pending.length < C && nextUnit < UNITS.length) {",
-			"      startWorker(UNITS[nextUnit]);",
-			"      nextUnit += 1;",
-			"    }",
-			"    const done = await Promise.race(pending.map((entry) => entry.promise));",
-			"    pending = pending.filter((entry) => entry.key !== done.key);",
-			"    rows.push(evidenceRow(done));",
-			'    if (done.kind === "worker" && done.error === undefined && done.result && done.result.ok === true && done.unit.verifier) {',
-			"      startVerifier(done.unit, done.result);",
-			"    }",
-			"  }",
-			"  return rows;",
-			"} finally {",
-			"  await Promise.allSettled(pending.map((entry) => entry.promise));",
-			"}",
-			"```",
-			"",
-			"Each `Promise.race` removes its settled entry before refill. Verifier tasks include only the matching worker reference from `runs.ref(worker)` and returned output under the child maxOutput contract, never the full result object. Every direct `runs.run` rejection becomes neutral stage error evidence, and the final `Promise.allSettled` observes pending promises on exceptional exit. Returned rows are evidence for drain-time classification, not verification verdicts.",
-			"Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.",
-		].join("\n"),
 	},
 	{
 		rel: "skills/how/SKILL.md",
@@ -1249,7 +1060,7 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 		pattern:
 			/^After all Phase B candidates complete, choose one model from the `arena cross-judge pool` line in `~\/\.cursor\/rules\/pstack-models\.mdc`\. If the rule or that line is missing, choose from `claude-opus-5-5-max`, `gpt-5\.6-sol-max`, `grok-4\.7-xhigh-fast`\. Prefer a different model family from the parent's\. Spawn one readonly judge subagent on that model\. It sees the rubric and the candidates by path label, scores each criterion, and recommends a base with rationale\. It runs in parallel with the parent's reading in Phase D, not with the candidates themselves\. Don't spawn the judge while candidates are still writing\.$/m,
 		replacement:
-			"After all Phase B candidates finish, select one model from `arena judge pool`. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.",
+			"After all Phase B candidates finish, select one model from `arena judge pool` in `~/.pi/agent/pstack/models.json` when configured. Otherwise inherit the resolved parent Pi model. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.",
 	},
 	{
 		rel: "skills/architect/SKILL.md",
@@ -1470,6 +1281,10 @@ export function apply(planned) {
 
 const LEGACY_PI_CALLER_GUIDANCE_RULES = [
 	{
+		id: "cursor-loop-command",
+		pattern: /\/loop\b/,
+	},
+	{
 		id: "legacy-flat-subagent-call",
 		pattern: /subagent\(\s*\{(?!\s*action\s*:)/,
 	},
@@ -1516,6 +1331,7 @@ const LEGACY_PI_CALLER_GUIDANCE_RULES = [
 function isExecutablePiGuidance(rel) {
 	return (
 		rel === "README.md" ||
+		rel === "skills/poteto-help/references/recipes.md" ||
 		/^skills\/[^/]+\/SKILL\.md$/.test(rel) ||
 		/^skills\/poteto-mode\/playbooks\/[^/]+\.md$/.test(rel)
 	);

@@ -38,7 +38,7 @@ If a candidate fails to produce output, pass the completed N-1 results to the ju
 
 ## Phase C: Cross-judge
 
-After all Phase B candidates finish, select one model from `arena judge pool`. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.
+After all Phase B candidates finish, select one model from `arena judge pool` in `~/.pi/agent/pstack/models.json` when configured. Otherwise inherit the resolved parent Pi model. Prefer a different family from the parent within permitted model policy. Launch a fresh `pi_worker` judge with tools `read`, `grep`, `find`, and `ls`. It reads the rubric and completed candidate paths, scores every criterion, and recommends a base. Read the artifacts in BB while it runs. Never launch the judge while candidates are writing.
 
 ## Phase D: Pick a base
 

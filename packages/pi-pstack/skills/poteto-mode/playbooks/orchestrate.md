@@ -1,6 +1,6 @@
 ### Orchestrate
 
-**You own the program, never the code. Author briefs, drain the queue, keep the frontier green, decide.** For a whole project handed to one standing coordinator chat: multi-day, many independent PRs, dozens to hundreds of subagents, the human checking in twice a day instead of every five minutes. One task driven to a predicate is Autonomous run. One ambitious run needing a bespoke workflow is figure-it-out. Route here when the work outlives any single agent. Work one agent could finish inside the session's budget is not a program.
+**You own the program, never the code. Author briefs, drain the queue, keep the frontier green, decide.** For a whole project handed to one standing coordinator chat: multi-day, many independent PRs, dozens to hundreds of BB Pi worker threads, the human checking in twice a day instead of every five minutes. One task driven to a predicate is Autonomous run. One ambitious run needing a bespoke workflow is figure-it-out. Route here when the work outlives any single agent. Work one agent could finish inside the session's budget is not a program.
 
 Ceremony must scale with the program. On cheap near-identical units, collapse it as each section directs.
 
@@ -29,7 +29,7 @@ The coordinator is the sole program-store writer. Workers publish reports and ar
 - `preferences.md` is the standing-orders register: numbered lines, one constraint each (model policy, PR inventory and dependencies, verification bar, forbidden paths, escalation policy). Paste it verbatim into every spawn and every resume. Directives decay across resumes, and each dropped one costs a human turn. When you catch yourself restating an instruction, append the line before you act (principle-encode-lessons-in-structure).
 - `overview.md` is the durable PR and issue DB. Append. Never rewrite wholesale per event.
 - `units.tsv` has one row per unit: id, track, state, branch, PR, head SHA, brief path. Update rows in place.
-- `frontier.json` is the computed merge frontier, per Stack safety.
+- `frontier.json` is the computed merge frontier, per PR safety.
 - `ledger.tsv` is the verification ledger, per Verification.
 - `inbox/` holds completion pointers. `gates.md` parks human gates (question, options, default on no answer).
 - `decisions.tsv` is the trail via the show-me-your-work skill.
@@ -55,7 +55,7 @@ STANDING     <preferences.md pasted verbatim>
 
 Size the brief to the unit. A one-command unit gets the template collapsed to a paragraph that still names goal, scope, the verify command, and the report shape. A 4KB scaffold around a two-line edit costs more to write and obey than the edit. Children with access to the store may reference the standing-orders file by path. Paste it verbatim for external-provider launches and every resume.
 
-A sub-coordinator brief adds its track boundary and unit list, its spawn budget with the async default and blocking exceptions, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).
+A sub-coordinator brief adds its track boundary and unit list, its combined worker-and-verifier in-flight cap, the drain protocol, and the rollup format (per child: name, status, PR, head SHA, verdict, one line, plus track status and frontier delta).
 
 A dependency is a context relay, not just ordering. Undeclared upstream context makes the worker guess. Missing fields are a refuse-to-spawn condition. Audit one sampled worker brief per sub-coordinator per wave, concurrently with the wave it samples, never as a gate in front of it. A failing brief stops that track and fixes the sub-coordinator's instructions, not just the worker, because brief quality decays late in a run. Never resume-chain a brief. Respawn fresh with consolidated scope.
 
@@ -68,7 +68,7 @@ A dependency is a context relay, not just ordering. Undeclared upstream context 
 
 Choose a positive in-flight cap from the finite unit inventory. Count workers and verifiers together. Launch ready `pi_worker` assignments up to that cap without waiting between launches. Each carries its role, resolved model, explicit tools, isolated workspace when writing, brief, and report contract. Persist its BB thread ID against its work-unit ID.
 
-On a successful worker completion, read its full report and launch that unit's independent verifier before refilling the slot with a new worker. A failed worker records neutral evidence and gets no verifier. Dependent stages launch only after prerequisite reports and artifacts are available. The coordinator chooses each refill; do not replace that judgment with a workflow script.
+On a successful worker completion, read its full report. If the unit requires independent verification, launch its independent verifier before refilling the slot with a new worker. For cheap units with a single VERIFY command, check the worker's required receipts, record the result, and refill without a dedicated verifier. A failed worker returns neutral evidence for the coordinator to record and gets no verifier. Dependent stages launch only after prerequisite reports and artifacts are available. The coordinator chooses each refill; do not replace that judgment with a workflow script.
 
 Blocking batches pay the slowest child of every batch. Spawn track sub-coordinators only past the one-drain threshold in Roles. Recompute ready work after each drain. Relay upstream reports into downstream briefs. Keep sibling communication upward only. The sampled brief audit runs alongside the wave it samples and stops the next refill on failure, not the current one.
 5. **Drain.** Run the queue discipline below at every drain point.
@@ -78,7 +78,7 @@ Blocking batches pay the slowest child of every batch. Spawn track sub-coordinat
 #### Queue and drain
 
 - On a completion notification, run `orch inbox push <agent> <unit> <status> [--report PATH]` and return to what you were doing. Never deep-review inline. A completion that needs review becomes a verifier unit. Never review a diff inside a drain.
-- Drain in batches at four points: the end of a critical section, a track rollup, a frontier watcher wake (arm it via the loop skill, with a long heartbeat fallback), and before a human report. Begin each batch with `orch inbox drain`. Arrivals during a drain wait for the next one.
+- Drain in batches at four points: the end of a critical section, a track rollup, a frontier watcher wake (use an available bounded live-session `until` recurrence or an existing durable scheduler; report a missing capability), and before a human report. Begin each batch with `orch inbox drain`. Arrivals during a drain wait for the next one.
 - Critical sections you finish first: authoring a brief, a branch-owner update, a conflict decision, writing a gate, updating ledger or frontier.
 - Each drain classifies every pointer (landed, needs-verify, failed, zombie, noise), writes the resulting rows through `orch unit add`, `orch unit set`, and `orch ledger record`, runs `orch status`, then spawns the next wave in one message.
 - Account for every spawned child at its track's rollup: arrived, respawned, or its scope explicitly absorbed. Silently redoing a missing child's work hides both the wasted spend and the coverage gap its result existed to close.
@@ -98,9 +98,9 @@ Blocking batches pay the slowest child of every batch. Spawn track sub-coordinat
 
 Scale verification to the unit. When VERIFY is a single cheap command, the worker runs it and reports the output, and the coordinator spot-checks receipts. A dedicated verifier agent (on a different model family than the worker) is for units whose verification is expensive, judgment-laden, or high-blast-radius. A verifier agent whose entire product would be rerunning one command is ceremony, not verification.
 
-Write ledger rows with `orch ledger record`. Check the current PR and head SHA with `orch ledger check`. `ledger.tsv`, one row per verdict, keyed by PR number plus head SHA: `live-ui-verified | unit-test-verified | type-check-only | verifier-blocked | verifier-failed`. CI green is an input to a verdict, not a verdict. Behavioral work needs better than `type-check-only`. `verifier-blocked` is not a pass. Respawn when the environment heals. `verifier-failed` gets a fix unit, not a re-verify. A worker may self-report. A verifier overrides it on the same key. A new head SHA voids the row, so re-verify after a rebase or any other head change. The ledger answers "was this verified", not memory and not the transcript.
+Only the coordinator writes ledger rows with `orch ledger record`. Check the current PR and head SHA with `orch ledger check`. `ledger.tsv`, one row per verdict, keyed by PR number plus head SHA: `live-ui-verified | unit-test-verified | type-check-only | verifier-blocked | verifier-failed`. CI green is an input to a verdict, not a verdict. Behavioral work needs better than `type-check-only`. `verifier-blocked` is not a pass. Respawn when the environment heals. `verifier-failed` gets a fix unit, not a re-verify. A worker may self-report. Verifiers return evidence and a proposed verdict keyed by PR number and exact head SHA. The coordinator records the independent verdict during drain, overriding a self-report on the same key. A new head SHA voids the row, so re-verify after a rebase or any other head change. The ledger answers "was this verified", not memory and not the transcript.
 
-A unit is not done until its output is externalized the moment it lands, never batched to the end of the run. A worker pushes its branch, a verifier writes its ledger row, receipts land in the store. Work that exists only on one VM when that VM dies was never done.
+A unit is not done until its output is externalized the moment it lands, never batched to the end of the run. A worker pushes its branch and returns receipts. A verifier returns its evidence and proposed verdict. The coordinator preserves the receipts and records the verdict in the shared store. Work that exists only on one VM when that VM dies was never done.
 
 #### Liveness and failure
 
@@ -110,7 +110,7 @@ A unit is not done until its output is externalized the moment it lands, never b
 - A zombie that returns hours late reconciles against the current frontier and ledger before anything is accepted. Salvage unique findings through a fresh unit, never a blind merge.
 - When continued spawning would produce garbage tree-wide (bad upstream output, broken acceptance, dead infra), write a stop line at the top of the standing orders, let in-flight work finish, fix the cause, clear it.
 - Bound your own infra retries the same way you bound a child's. After a few consecutive tool aborts, stop retrying. Write a terminal handoff to durable state (what is done, where it lives, the exact command to resume) and end the run.
-- After a Pi restart, re-read the standing orders and `units.tsv`, query retained async runs, recompute the frontier, reattach work by PR and branch rather than agent id, respawn one sub-coordinator per track from its stored brief plus current state, drain, and resume. The dead session's store lock clears itself on the next write. `orch` replaces a lock whose holder pid is gone.
+- After a Pi restart, re-read the standing orders and `units.tsv`, inspect retained BB child threads and their full reports, recompute the frontier, reconcile BB thread IDs with unit PRs and branches, respawn one sub-coordinator per track from its stored brief plus current state, drain, and resume. The dead session's store lock clears itself on the next write. `orch` replaces a lock whose holder pid is gone.
 
 #### Escalation
 
