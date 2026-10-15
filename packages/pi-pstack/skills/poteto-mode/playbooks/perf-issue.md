@@ -15,7 +15,7 @@
 
    When an earlier mantra meets the target, stop.
    For a bottleneck within one executable program, read the installed `~/.agents/skills/perform-like-jeff-and-sanjay/SKILL.md` and use its Diagnose route before selecting the fix. Reuse existing measurements. Distributed-systems performance and ML-hardware tuning stay with domain-specific methods.
-3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using the `perf-issue` role (default inherit-parent). Review the diff. Capture a post-fix trace.
+3. Plan the fix from the trace. If it crosses a function boundary, `architect` first. Delegate implementation to a subagent using the `perf-issue` role (default inherit-parent). Pick each subagent's reasoning level and fast or standard speed for the job, per the Subagents section. Review the diff. Capture a post-fix trace.
    Apply the **sequence-verifiable-units** principle skill, verifying each attempt before trying the next.
 4. Parse and compare the artifacts (JSON to sqlite, diff). "Inconclusive" or wrong-surface is not a pass. Flag it.
 5. Cite the measurement in the PR.

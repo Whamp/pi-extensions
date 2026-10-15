@@ -64,16 +64,17 @@ BB is the interaction surface. Pi runs the coordinator and fresh, nested worker 
 3. Run `/pstack off` to hide the Pi-only `code-review` coordinator from the Skill catalog.
    Off persists in `~/.pi/agent/pstack/models.json`.
    `/skill:<name>` keeps working.
-   `/pstack on` restores `code-review`, not all 52.
+   `/pstack on` restores `code-review`, not all 55.
 
 That is it.
 The other skills are Hidden; the mode skill uses them as needed.
 
 ## What you get
 
-- **52 skills**, including:
+- **55 skills**, including:
   - `poteto-mode`: the main entry point. Reads your request, matches one of 23 playbooks (bug fix, perf, feature, refactoring, investigation, shipping, orchestrate, autopilot, and more), copies its steps in verbatim, and routes to the other skills as steps fire. Orchestrate refills one shared worker-and-verifier window as each child settles.
   - Workflow skills: `code-review`, `how`, `why`, `recall`, `blast-radius`, `architect`, `arena`, `swarm`, `interrogate`, `reflect`, `teach`, `tdd`, `no-comments`, `unslop`, `deslop`, `bro`, `figure-it-out`, `show-me-your-work`, `create-verification-skill`, `maintain-verification-skill`, `automate-me`, `technical-writing`, `typescript-best-practices`.
+  - `in-your-own-words` restates the user's goals. `sharpen` refines the approach and then does the task. `ketchup` catches the user up with plain summaries and existing visual evidence.
   - 24 principle skills (`principle-laziness-protocol`, `principle-model-the-domain`, `principle-prove-it-works`, ...), one rule each, indexed inline by `poteto-mode`.
 - **`ask_user_question`**: one structured preference question with 2-6 listed options. The user can pick those or type a different answer.
 - **BB Pi workers**: fresh, visible, parented conversations for exploration, research, implementation, review, and verification. Each receives a bounded brief, resolved model, and explicit native tool selection. The coordinator decides fanout, dependency order, judging, and rolling windows. Writers use separately prepared workspaces.
@@ -132,6 +133,8 @@ An older `code-review` skill may also appear from a global installation under `~
 [backnotprop/pstack](https://github.com/backnotprop/pstack) is Lauren Tan's standalone mirror of the same Cursor plugin (`npx skills add backnotprop/pstack`). Its `main` branch keeps Cursor wording and adds a [Harness](https://github.com/backnotprop/pstack/blob/main/skills/poteto-mode/SKILL.md#harness) table so one skill body can run in Claude Code, Codex, Pi, and others. This package is the Pi-native port: it rewrites those seams (`/skill:`, `models.json`, BB Pi workers) instead of asking the agent to translate. The Pi session path in that Harness table is what this package now writes into skills. Do not install the mirror into Pi if you want this extension.
 
 See [MIRROR.md](https://github.com/backnotprop/pstack/blob/main/MIRROR.md) for the mirror's two-branch sync. This package uses `scripts/reground-from-cursor.mjs` instead.
+
+The current import is Cursor Pstack 0.15.25 at plugins commit `6ce45c59b9301a638c1fe1a7b8dc2a82b650898f`. The [pinned caller fixture](fixtures/cursor-pstack-6ce45c5/README.md) records the source and regeneration command. The importer retains Pi-owned BB, independent-PR, exact-head and role-policy behavior. It adapts upstream effort guidance to Pi's `reasoningLevel` without changing configured model selectors or parent inheritance. `make-bot-ui` remains excluded.
 
 ## License
 

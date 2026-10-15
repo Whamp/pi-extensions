@@ -47,7 +47,6 @@ function runPostinstall(cwd, home, extraEnv = {}) {
 
 function assertSharedSkills(sharedRoot) {
 	const names = readdirSync(skillsRoot);
-	assert.equal(names.length, 52);
 	assert.deepEqual(readdirSync(sharedRoot).sort(), names.sort());
 	for (const name of names) {
 		assert.ok(lstatSync(join(sharedRoot, name)).isSymbolicLink());
@@ -63,6 +62,9 @@ function assertSharedSkills(sharedRoot) {
 		"poteto-help/SKILL.md",
 		"benchmark-checklist/SKILL.md",
 		"correct/SKILL.md",
+		"in-your-own-words/SKILL.md",
+		"ketchup/SKILL.md",
+		"sharpen/SKILL.md",
 		"principle-explain-the-number/SKILL.md",
 	]) {
 		assert.equal(

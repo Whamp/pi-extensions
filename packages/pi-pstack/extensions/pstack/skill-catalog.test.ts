@@ -37,18 +37,18 @@ function loadSkills(): SkillFrontmatter[] {
 describe("pstack skill catalog", () => {
 	it("keeps only the Pi-only code-review coordinator model-visible", () => {
 		const skills = loadSkills();
-		assert.equal(skills.length, 52);
+		assert.equal(skills.length, 55);
 		const discoverable = skills
 			.filter((skill) => !skill.hidden)
 			.map((skill) => skill.name)
 			.sort();
 		assert.deepEqual(discoverable, DISCOVERABLE);
-		assert.equal(skills.filter((skill) => skill.hidden).length, 51);
+		assert.equal(skills.filter((skill) => skill.hidden).length, 54);
 	});
 
 	it("keeps a Skill body for every Hidden skill so /skill:name can load it", () => {
 		const hidden = loadSkills().filter((skill) => skill.hidden);
-		assert.equal(hidden.length, 51);
+		assert.equal(hidden.length, 54);
 		for (const skill of hidden) {
 			assert.ok(skill.body.trim().length > 0, `${skill.name}: empty Skill body`);
 		}
