@@ -379,6 +379,17 @@ export interface RollupPage {
   readonly checks: readonly Check[];
   readonly endCursor: string | null;
 }
+/** A review thread before cross-page pass identities are assigned. */
+export interface RawReviewThread {
+  readonly id: string;
+  readonly firstComment: ReviewComment | null;
+  readonly resolved: boolean;
+}
+/** One validated review-thread page and its continuation cursor. */
+export interface ReviewThreadPage {
+  readonly threads: readonly RawReviewThread[];
+  readonly endCursor: string | null;
+}
 export interface GitHubReader {
   originRepo(): Promise<Repository | null>;
   currentPr(pr: PrNumber | null): Promise<PrContext>;
@@ -389,7 +400,10 @@ export interface GitHubReader {
     context: PrContext,
     after: string | null
   ): Promise<RollupPage>;
-  reviewThreads(context: PrContext): Promise<readonly ReviewThread[]>;
+  reviewThreadPage(
+    context: PrContext,
+    after: string | null
+  ): Promise<ReviewThreadPage>;
   commitRollups(context: PrContext): Promise<readonly CommitRollup[]>;
 }
 export interface PollingOptions {

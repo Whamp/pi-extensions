@@ -23,17 +23,17 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		file: "skills/how/SKILL.md",
 		lines: [
 			{
-				section: "## Step 2a. Explore",
+				section: "## 2. Explore",
 				line: "using `how explorers`",
 				roles: ["how explorers"],
 			},
 			{
-				section: "## Step 2b. Direct Explain",
+				section: "## 1. Assess complexity",
 				line: "using `how explainer`",
 				roles: ["how explainer"],
 			},
 			{
-				section: "## Step 3. Synthesize",
+				section: "## 3. Synthesize",
 				line: "using `how synthesizer`",
 				roles: ["how synthesizer"],
 			},
@@ -58,22 +58,22 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 		file: "skills/reflect/SKILL.md",
 		lines: [
 			{
-				section: "### 2. Spawn three reviewers in parallel",
+				section: "## 2. Spawn three reviewers in parallel",
 				line: "| Judgment | `reflect judgment reviewer` (default inherit-parent) | `references/judgment-reviewer.md` |",
 				roles: ["reflect judgment reviewer"],
 			},
 			{
-				section: "### 2. Spawn three reviewers in parallel",
+				section: "## 2. Spawn three reviewers in parallel",
 				line: "| Tooling | `reflect tooling reviewer` (default inherit-parent) | `references/tooling-reviewer.md` |",
 				roles: ["reflect tooling reviewer"],
 			},
 			{
-				section: "### 2. Spawn three reviewers in parallel",
+				section: "## 2. Spawn three reviewers in parallel",
 				line: "| Divergent | `reflect divergent reviewer` (default inherit-parent) | `references/divergent-reviewer.md` |",
 				roles: ["reflect divergent reviewer"],
 			},
 			{
-				section: "### 3. Synthesize",
+				section: "## 3. Synthesize",
 				line: "using `reflect synthesizer`",
 				roles: ["reflect synthesizer"],
 			},
@@ -124,7 +124,7 @@ const ROLE_CONSUMERS: readonly RoleConsumerSpec[] = [
 			},
 			{
 				section: "## Step 3, Spawn Reviewers",
-				line: "read/search plus relevant research-tool allowlist",
+				line: "plus specifically required read-only research tools",
 				roles: [],
 			},
 		],
@@ -409,7 +409,8 @@ describe("pstack role consumers", () => {
 		}
 		const arena = readPackageFile("skills/arena/SKILL.md");
 		assert.match(arena, /judge with tools `read`, `grep`, `find`, and `ls`/);
-		assert.match(arena, /isolated workspace\/output path/);
+		assert.match(arena, /own isolated workspace/);
+		assert.match(arena, /output path/);
 	});
 
 	it("keeps v1-only role names in migration code, tests, and setup docs", () => {

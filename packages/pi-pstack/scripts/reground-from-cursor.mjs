@@ -10,6 +10,8 @@ import {
 } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { adaptBbCallerGuidance } from "./reground-bb-callers.mjs";
+import { adaptWatcherTypescript } from "./reground-watcher-typescript.mjs";
 
 const EXTENSION_COMMANDS = new Set(["/poteto-mode", "/setup-pstack", "/pstack"]);
 
@@ -41,6 +43,7 @@ export const CLASS_RULES = [
 	{ pattern: "skills/setup-pstack/**", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/check-plan.mjs", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/check-plan.test.mjs", class: "pi-only" },
+	{ pattern: "skills/poteto-mode/scripts/check-plan.test.ts", class: "never-copy" },
 	{ pattern: "skills/poteto-mode/scripts/package.json", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/bun.lock", class: "pi-only" },
 	{ pattern: "skills/poteto-mode/scripts/worktree-audit.sh", class: "pi-only" },
@@ -1143,6 +1146,8 @@ const PI_CALLER_GUIDANCE_REPLACEMENTS = [
 
 /** Translate executable Cursor caller guidance to the Pi role and BB worker contracts. */
 export function applyPiCallerGuidanceTransforms(text, rel) {
+	text = adaptBbCallerGuidance(text, rel);
+	text = adaptWatcherTypescript(text, rel);
 	for (const replacement of PI_CALLER_GUIDANCE_REPLACEMENTS) {
 		if (replacement.rel === rel) {
 			text = text.replace(replacement.pattern, replacement.replacement);

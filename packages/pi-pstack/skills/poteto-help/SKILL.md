@@ -47,6 +47,9 @@ Recommend Poteto Mode for a complete task. Recommend a specific skill when the o
 | Estimate and verify the effect outside a diff | [Blast radius](../blast-radius/SKILL.md) |
 | Test a performance claim | [Benchmark checklist](../benchmark-checklist/SKILL.md) |
 | Catch up on prior work | [Recall](../recall/SKILL.md) |
+| Catch up on changes since your last message | [Ketchup](../ketchup/SKILL.md) |
+| Restate the user's goal before work | [In your own words](../in-your-own-words/SKILL.md) |
+| Refine the approach and constraints, then do the task | [Sharpen](../sharpen/SKILL.md) |
 | Turn a completed run into proposed lessons | [Reflect](../reflect/SKILL.md) |
 | Correct repeated mistakes | [Correct](../correct/SKILL.md) |
 | Write or revise technical prose | [Technical writing](../technical-writing/SKILL.md) |

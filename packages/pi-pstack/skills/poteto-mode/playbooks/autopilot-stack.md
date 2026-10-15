@@ -11,4 +11,4 @@ This file retains the former Autopilot-stack entry point. It no longer construct
 
 Choose this procedure when the operator wants review before landing or has withheld merge authority. Choose Autopilot-full when independent PRs may be merged under an explicit landing grant.
 
-**Reply.** The PR links, each verified head and verdict, pending dependencies, and the approvals still needed.
+**Reply.** Read `../../ketchup/SKILL.md` and catch the operator up. Cover the PR links, each verified head and verdict, pending dependencies, and the approvals still needed. Do not mark work done while it waits for the operator.

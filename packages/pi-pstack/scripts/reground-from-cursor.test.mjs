@@ -119,7 +119,8 @@ function extractPotetoDefaultsSection(text) {
 	assert.notEqual(start, -1, "missing Pi child defaults");
 	const end = text.indexOf("\n\nYou own every subagent's work.", start);
 	assert.notEqual(end, -1, "missing end of Pi child defaults");
-	return text.slice(start, end);
+	const effort = text.indexOf("\n\n**Match the model to the job.**", start);
+	return text.slice(start, effort === -1 ? end : effort);
 }
 
 test("frontmatter preserves upstream invocation settings without a Pi selection override", () => {
@@ -139,8 +140,16 @@ test("frontmatter preserves upstream invocation settings without a Pi selection 
 	}
 });
 
-test("Codex controls disable implicit invocation for the four restored upstream skills", () => {
-	for (const skill of ["how", "why", "unslop", "typescript-best-practices"]) {
+test("Codex controls preserve user-only invocation for restored and new upstream skills", () => {
+	for (const skill of [
+		"how",
+		"why",
+		"unslop",
+		"typescript-best-practices",
+		"in-your-own-words",
+		"ketchup",
+		"sharpen",
+	]) {
 		assert.equal(
 			readFileSync(join(packageRoot, "skills", skill, "agents/openai.yaml"), "utf8"),
 			"policy:\n  allow_implicit_invocation: false\n",
@@ -396,7 +405,13 @@ test("pinned upstream caller guidance regenerates shipped files byte-for-byte", 
 		writeFileSync(target, readFileSync(join(packageRoot, rel), "utf8"));
 	}
 
-	apply(plan({ from: pinnedCallerGuidanceRoot, to: destination, dryRun: false }));
+	apply(
+		plan({
+			from: join(packageRoot, "fixtures/cursor-pstack-6ce45c5"),
+			to: destination,
+			dryRun: false,
+		}),
+	);
 
 	for (const rel of PINNED_CALLER_GUIDANCE_FILES) {
 		assert.equal(
