@@ -1,5 +1,16 @@
 # @whamp/pi-pstack
 
+## 0.11.0
+
+### Minor Changes
+
+- e9b224a: Adapt Pstack to fresh nested BB Pi workers with native tool selection and projectless context. Preserve upstream methods, independent PR policy, and role models. Refresh Cursor Pstack to 0.15.15 and protect the BB reference and help overlays from regeneration.
+- 1673c3d: Sync Cursor Pstack 0.15.25. Add in-your-own-words, ketchup, and sharpen. Update BB worker translations, preserve Pi role and PR safeguards, and improve plan-checker code-fence handling.
+
+### Patch Changes
+
+- ec897db: Hide package-owned skills advertised through shared filesystem symlinks when Pstack is off. Resolve existing skill locations and the package skill root before filtering, while retaining lexical matching for missing synthetic paths.
+
 ## 0.10.1
 
 ### Patch Changes
